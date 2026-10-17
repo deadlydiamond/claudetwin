@@ -110,3 +110,55 @@ for (const surface of ['terminal', 'desktop'] as const) {
     expect(await ui.find({ key: 'login-work' })).toBeTruthy()
   })
 }
+
+test('Sync all history imports both profiles and shows progress', { options: OPTIONS }, async ($, on) => {
+  const spawned: string[][] = []
+  let release: () => void = () => {}
+  const gate = new Promise<void>(r => (release = r))
+  on('env.get', async (_$, e) => ({ value: e.name === 'HOME' ? HOME : undefined }))
+  on('fs.read', async (_$, e) =>
+    e.path === `${HOME}/Projects/claudetwin/connector/.env`
+      ? { value: `PORT=8788\nCLAUDETWIN_WORK_TOKEN=${'w'.repeat(48)}\nCLAUDETWIN_PERSONAL_TOKEN=${'p'.repeat(48)}\n` }
+      : { value: login('me@company.com', 'claude_team') },
+  )
+  on('fs.exists', async (_$, e) => ({
+    value: e.path === '/opt/homebrew/bin/node' || e.path.includes('/1.3.0/scripts/sync-history.mjs') || e.path.endsWith('/projects'),
+  }))
+  on('http.fetch', async (_$, e) => {
+    const body = e.url.endsWith('/api/whoami')
+      ? { space: 'work', mode: 'shared' }
+      : e.url.includes('/api/handoff')
+        ? { handoff: null }
+        : e.url.includes('/api/stats')
+          ? { messages: { work: 18175, personal: 40 }, handoffs: 1, oldest: '2025-07-12T10:00:00.000Z' }
+          : { items: [] }
+    return { value: { status: 200, ok: true, headers: {}, text: JSON.stringify(body) } }
+  })
+  on('process.spawn', async function* (_$, e) {
+    spawned.push([...e.argv])
+    yield { stream: 'stdout' as const, text: '{"phase":"scan","total":100}\n{"phase":"sync","done":40,"total":100,"added":900}\n' }
+    if (spawned.length === 1) await gate
+    yield { stream: 'stdout' as const, text: '{"phase":"done","total":100,"added":1000}\n' }
+    return { value: { code: 0, signal: null } }
+  })
+  on('ui.open', async () => ({ value: { isPlaced: true } }))
+
+  await $.command.run(TWIN)
+  const ui = await $.ui.mount({ ...PANE, surface: 'terminal' })
+  const pressing = ui.press({ key: 'sync' })
+  await new Promise(r => setTimeout(r, 50))
+  const during = (await ui.findAll({ type: 'Text' })).map(t => t.text).join('\n')
+  expect(during).toContain('40%')
+  expect(during).toContain('40/100 sessions')
+  expect(during).toContain('syncing…')
+  release()
+  await pressing
+  await new Promise(r => setTimeout(r, 50))
+
+  expect(spawned.map(a => a[3])).toEqual(['w'.repeat(48), 'p'.repeat(48)])
+  expect(spawned[1][4]).toBe(`${HOME}/.claude-personal`)
+  const after = (await ui.findAll({ type: 'Text' })).map(t => t.text).join('\n')
+  expect(after).toContain('2,000 new messages')
+  expect(after).toContain('18,215 messages')
+  expect(after).toContain('since 12 Jul 2025')
+})

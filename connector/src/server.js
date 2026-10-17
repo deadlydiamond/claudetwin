@@ -184,6 +184,15 @@ const httpServer = http.createServer(async (req, res) => {
         const entry = store.addLog({ space, role: b.role, text: b.text, chatUrl: b.chatUrl, chatTitle: b.chatTitle });
         return send(res, 201, { id: entry.id });
       }
+      // Bulk import of past sessions (plugin/scripts/sync-history.mjs). Duplicates are skipped.
+      if (url.pathname === '/api/import' && req.method === 'POST') {
+        const b = (await readBody(req, 20_000_000)) || {};
+        if (!Array.isArray(b.entries) || b.entries.length > 2000) return send(res, 400, { error: 'entries[] (max 2000) required' });
+        return send(res, 200, store.importLogs(space, b.entries));
+      }
+      if (url.pathname === '/api/stats' && req.method === 'GET') {
+        return send(res, 200, store.stats(canSee));
+      }
       if (url.pathname === '/api/history' && req.method === 'GET') {
         const q = url.searchParams.get('q') || '';
         const limit = Math.min(Number(url.searchParams.get('limit')) || 100, 500);

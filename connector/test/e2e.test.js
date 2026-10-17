@@ -102,3 +102,35 @@ test('whoami names the account a token belongs to', async () => {
   assert.equal((await who(PERSONAL)).space, 'personal');
   assert.equal((await fetch(`${base}/api/whoami`, { headers: { authorization: 'Bearer nope' } })).status, 401);
 });
+
+test('history import keeps old timestamps, skips duplicates, and reports stats', async () => {
+  const auth = { authorization: `Bearer ${WORK}`, 'content-type': 'application/json' };
+  const entries = [
+    { role: 'user', text: 'zain notch app banao', at: '2026-09-01T10:00:00.000Z', chatUrl: 'claude-code:s1', chatTitle: 'Claude Code · zain' },
+    { role: 'assistant', text: 'Notch app ready on port 8787', at: '2026-09-01T10:05:00.000Z', chatUrl: 'claude-code:s1' },
+  ];
+  const post = () => fetch(`${base}/api/import`, { method: 'POST', headers: auth, body: JSON.stringify({ entries }) }).then((r) => r.json());
+  assert.deepEqual(await post(), { added: 2, skipped: 0 });
+  assert.deepEqual(await post(), { added: 0, skipped: 2 });
+
+  // The live hook logging the same message again does not duplicate it either.
+  await fetch(`${base}/api/log`, { method: 'POST', headers: auth, body: JSON.stringify({ ...entries[0], at: undefined }) });
+  const found = await (await fetch(`${base}/api/history?q=zain%20notch`, { headers: auth })).json();
+  assert.equal(found.items.filter((i) => i.text === 'zain notch app banao').length, 1);
+  assert.equal(found.items.find((i) => i.text === 'zain notch app banao').at, '2026-09-01T10:00:00.000Z');
+
+  const stats = await (await fetch(`${base}/api/stats`, { headers: auth })).json();
+  assert.ok(stats.messages.work >= 2);
+  assert.equal(stats.oldest, '2026-09-01T10:00:00.000Z');
+});
+
+test('migrates a log kept inside claudetwin.json to log.jsonl', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ctwin-'));
+  const old = { role: 'user', text: 'purani baat', space: 'work', id: 'a', chatUrl: '', chatTitle: '', at: '2026-01-01T00:00:00.000Z' };
+  fs.writeFileSync(path.join(dir, 'claudetwin.json'), JSON.stringify({ handoffs: [], log: [old, old] }));
+  const { Store } = await import('../src/store.js');
+  const s = new Store(dir);
+  assert.equal(s.recent(() => true, 10).length, 1);
+  assert.equal(JSON.parse(fs.readFileSync(path.join(dir, 'claudetwin.json'), 'utf8')).log, undefined);
+  assert.equal(new Store(dir).recent(() => true, 10).length, 1);
+});
