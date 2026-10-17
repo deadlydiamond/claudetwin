@@ -137,6 +137,21 @@ export class Store {
     return items.sort((a, b) => b.at.localeCompare(a.at)).slice(0, limit);
   }
 
+  // Handoffs alone, newest first, for clients that keep no message log (TwinBridge).
+  recentHandoffs(canSee, limit = 20) {
+    return this.data.handoffs
+      .filter((h) => canSee(h.space))
+      .map((h) => ({ kind: 'handoff', ...h }))
+      .sort((a, b) => b.at.localeCompare(a.at))
+      .slice(0, limit);
+  }
+
+  searchHandoffs(canSee, query, limit = 10) {
+    return this.search(canSee, query, Number.MAX_SAFE_INTEGER)
+      .filter((i) => i.kind === 'handoff')
+      .slice(0, limit);
+  }
+
   search(canSee, query, limit = 10) {
     const terms = query.toLowerCase().split(/\s+/).filter(Boolean);
     if (!terms.length) return this.recent(canSee, limit);
