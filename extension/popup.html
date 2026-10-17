@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="ur">
+<html lang="en">
 <head>
   <meta charset="utf-8">
   <title>ClaudeTwin</title>
@@ -32,12 +32,12 @@
 
   <!-- First run: which account is logged in right now? -->
   <section id="setup" class="stack" hidden>
-    <p>claude.ai mein abhi jo account login hai, wo kaunsa hai?</p>
+    <p>Which account is signed in to claude.ai right now?</p>
     <div class="row">
       <button class="primary" data-set="work" id="set-work">Company</button>
       <button data-set="personal" id="set-personal">Personal</button>
     </div>
-    <p class="muted small">Agar abhi koi login nahi, to jis account se pehle login karna hai wo chunein.</p>
+    <p class="muted small">If none is signed in, pick the one you want to sign in to first.</p>
   </section>
 
   <section id="main" class="stack" hidden>
@@ -52,7 +52,7 @@
       <span><span class="name" id="label-personal">Personal</span><span class="meta" id="meta-personal"></span></span>
       <span class="now" id="now-personal"></span>
     </button>
-    <label class="row small"><input type="checkbox" id="carry"> Switch par aakhri prompt saath le jao</label>
+    <label class="row small"><input type="checkbox" id="carry"> Carry my last prompt when switching</label>
     <p id="msg" class="small" hidden></p>
   </section>
 

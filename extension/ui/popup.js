@@ -15,7 +15,7 @@ async function render() {
   for (const id of ['work', 'personal']) {
     const active = s.active === id;
     $(`label-${id}`).textContent = cfg.labels[id];
-    $(`meta-${id}`).textContent = active ? 'Is waqt khula hai' : s.saved[id] ? 'Login yaad hai' : 'Pehli dafa login karna hoga';
+    $(`meta-${id}`).textContent = active ? 'Open now' : s.saved[id] ? 'Signed in' : 'Sign-in needed';
     $(`now-${id}`).textContent = active ? 'Active' : '';
     document.querySelector(`.acct[data-id="${id}"]`).setAttribute('aria-pressed', String(active));
   }
@@ -25,7 +25,7 @@ async function render() {
   $('limit').hidden = !limit;
   if (limit) {
     const to = s.active === 'work' ? 'personal' : 'work';
-    $('limit').textContent = `${cfg.labels[s.active]} ki limit khatam lagti hai. ${cfg.labels[to]} par switch kar sakte hain.`;
+    $('limit').textContent = `${cfg.labels[s.active]} seems to have hit its usage limit. You can switch to ${cfg.labels[to]}.`;
   }
 }
 
@@ -44,17 +44,17 @@ document.querySelectorAll('[data-set]').forEach((b) =>
 document.querySelectorAll('.acct').forEach((b) =>
   b.addEventListener('click', async () => {
     const id = b.dataset.id;
-    say('Switch ho raha hai...');
+    say('Switching...');
     const r = await ask({ type: 'switch', id });
-    if (r?.error) return say(`Masla: ${r.error}`);
+    if (r?.error) return say(`Problem: ${r.error}`);
     await render();
     const { config } = await ask({ type: 'status' });
     say(
       !r.changed
-        ? `${config.labels[id]} pehle se khula hai.`
+        ? `${config.labels[id]} is already open.`
         : r.loggedIn
-          ? `${config.labels[id]} khul gaya.`
-          : `Ab claude.ai par ${config.labels[id]} account se login karein (Google bhi chalega). Agli dafa ye yaad rahega.`
+          ? `Switched to ${config.labels[id]}.`
+          : `Now sign in to claude.ai with your ${config.labels[id]} account (Google works). It will be remembered next time.`
     );
   })
 );

@@ -14,14 +14,14 @@ const when = (iso) => new Date(iso).toLocaleString([], { dateStyle: 'medium', ti
 function actions(item, text) {
   const row = el('div', { className: 'row actions' });
   row.append(
-    el('button', { textContent: 'Claude mein paste', onclick: () => ask({ type: 'fill', text }) }),
+    el('button', { textContent: 'Paste in Claude', onclick: () => ask({ type: 'fill', text }) }),
     el('button', { textContent: 'Copy', onclick: () => navigator.clipboard.writeText(text) })
   );
   if (item.chatUrl) {
     const same = item.space === current;
     row.append(
       el('button', {
-        textContent: same ? 'Chat kholein' : `${labels[item.space]} par switch + kholein`,
+        textContent: same ? 'Open chat' : `Switch to ${labels[item.space]} and open`,
         onclick: () => ask({ type: 'open-chat', url: item.chatUrl, space: item.space }),
       })
     );
@@ -31,7 +31,7 @@ function actions(item, text) {
 
 function entry(item) {
   const isHandoff = item.kind === 'handoff';
-  const who = isHandoff ? 'Handoff' : item.role === 'user' ? 'Aap' : 'Claude';
+  const who = isHandoff ? 'Handoff' : item.role === 'user' ? 'You' : 'Claude';
   const text = isHandoff
     ? `${item.title}\n\n${item.summary}${item.nextSteps?.length ? `\n\nNext:\n- ${item.nextSteps.join('\n- ')}` : ''}`
     : item.text;
@@ -58,7 +58,7 @@ async function load() {
   const status = await ask({ type: 'status' });
   current = status.active;
   labels = { ...labels, ...status.config.labels };
-  $('state').textContent = 'Load ho raha hai...';
+  $('state').textContent = 'Loading...';
 
   const r = await ask({ type: 'history', q: $('q').value.trim() });
   $('list').replaceChildren();
@@ -66,22 +66,22 @@ async function load() {
 
   if (r?.error === 'not-configured') {
     $('state').replaceChildren(
-      'Connector set nahi hai. ',
-      el('button', { className: 'link', textContent: 'Settings kholein', onclick: () => chrome.runtime.openOptionsPage() })
+      'The connector is not set up. ',
+      el('button', { className: 'link', textContent: 'Open settings', onclick: () => chrome.runtime.openOptionsPage() })
     );
     return;
   }
   if (r?.error) {
-    $('state').textContent = `Connector se rabta nahi hua: ${r.error}`;
+    $('state').textContent = `Could not reach the connector: ${r.error}`;
     $('state').className = 'err small';
     return;
   }
   $('state').className = 'muted small';
-  $('state').textContent = r.items.length ? `${r.items.length} items` : 'Abhi kuch nahi. Claude se baat karein, yahan dikhega.';
+  $('state').textContent = r.items.length ? `${r.items.length} items` : 'Nothing yet. Chat with Claude and it shows up here.';
 
   if (r.handoff && !$('q').value.trim()) {
     $('handoff').hidden = false;
-    $('handoff').replaceChildren(el('h2', { textContent: 'Aakhri handoff' }), entry({ ...r.handoff, kind: 'handoff' }));
+    $('handoff').replaceChildren(el('h2', { textContent: 'Latest handoff' }), entry({ ...r.handoff, kind: 'handoff' }));
   }
   $('list').append(...r.items.filter((i) => !(r.handoff && i.id === r.handoff.id)).map(entry));
 }

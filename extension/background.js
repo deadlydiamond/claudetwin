@@ -26,8 +26,8 @@ async function updateBadge() {
 function carryText(cfg, fromId, prompt) {
   if (!cfg.connectorUrl) return prompt;
   return (
-    `[ClaudeTwin] Main ${cfg.labels[fromId]} account se aa raha hoon. ` +
-    `Pehle claudetwin ke get_handoff aur list_recent se pichla context lo, phir isi kaam ko continue karo:\n\n${prompt}`
+    `[ClaudeTwin] I'm continuing from my ${cfg.labels[fromId]} account. ` +
+    `First load the earlier context with claudetwin's get_handoff and list_recent, then continue this task:\n\n${prompt}`
   );
 }
 
@@ -111,7 +111,7 @@ const handlers = {
   fill: async ({ text }) => {
     const [tab] = await chrome.tabs.query({ url: CLAUDE, active: true, lastFocusedWindow: true });
     const target = tab || (await chrome.tabs.query({ url: CLAUDE }))[0];
-    if (!target) return { error: 'claude.ai ka koi tab khula nahi' };
+    if (!target) return { error: 'no claude.ai tab is open' };
     await chrome.tabs.sendMessage(target.id, { type: 'fill', text });
     chrome.tabs.update(target.id, { active: true });
     return { ok: true };

@@ -38,7 +38,7 @@ export function connector(cfg, accountId) {
       headers: { authorization: `Bearer ${token}`, ...(init.headers || {}) },
       signal: AbortSignal.timeout(8000),
     });
-    if (!res.ok) throw new Error(res.status === 401 ? 'token galat hai' : `HTTP ${res.status}`);
+    if (!res.ok) throw new Error(res.status === 401 ? 'wrong token' : `HTTP ${res.status}`);
     return res.json();
   };
   return {

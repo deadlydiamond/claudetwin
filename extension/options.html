@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="ur">
+<html lang="en">
 <head>
   <meta charset="utf-8">
   <title>ClaudeTwin settings</title>
@@ -17,41 +17,41 @@
     <h1>ClaudeTwin settings</h1>
 
     <section class="card stack">
-      <h2>Accounts ke naam</h2>
+      <h2>Account names</h2>
       <div class="grid">
-        <label class="field"><span>Pehla account</span><input type="text" id="label-work" maxlength="20"></label>
-        <label class="field"><span>Doosra account</span><input type="text" id="label-personal" maxlength="20"></label>
+        <label class="field"><span>First account</span><input type="text" id="label-work" maxlength="20"></label>
+        <label class="field"><span>Second account</span><input type="text" id="label-personal" maxlength="20"></label>
       </div>
     </section>
 
     <section class="card stack">
-      <h2>Connector (history aur handoff ke liye)</h2>
-      <p class="muted small">Ye na bhi ho to account switch chalta rahega. Connector ho to dono accounts ki history ek jagah aati hai.</p>
+      <h2>Connector (for history and handoffs)</h2>
+      <p class="muted small">Switching works without it. With a connector, both accounts' history lands in one place.</p>
       <label class="field"><span>Connector URL</span><input type="url" id="url" placeholder="http://localhost:8788"></label>
       <div class="grid">
         <label class="field"><span id="tok-work-label">Company token</span><input type="password" id="token-work" autocomplete="off"></label>
         <label class="field"><span id="tok-personal-label">Personal token</span><input type="password" id="token-personal" autocomplete="off"></label>
       </div>
-      <label class="row"><input type="checkbox" id="log"> Prompts aur jawab connector par save karo</label>
+      <label class="row"><input type="checkbox" id="log"> Save prompts and replies to the connector</label>
       <div class="row">
-        <button id="test">Connection check karein</button>
+        <button id="test">Test connection</button>
         <span id="test-result" class="small"></span>
       </div>
     </section>
 
     <section class="card stack">
-      <h2>Saved logins</h2>
-      <p class="muted small">Har account ka claude.ai login sirf is computer par, is browser mein save hota hai. Kisi account mein dobara login karna ho to yahan se bhula dein.</p>
+      <h2>Saved sign-ins</h2>
+      <p class="muted small">Each account's claude.ai sign-in is saved only on this computer, in this browser. Forget one here to sign in to it again.</p>
       <div class="row">
-        <button id="forget-work">Company bhula do</button>
-        <button id="forget-personal">Personal bhula do</button>
+        <button id="forget-work">Forget Company</button>
+        <button id="forget-personal">Forget Personal</button>
       </div>
       <p id="forget-result" class="small"></p>
     </section>
 
     <div class="row">
       <button class="primary" id="save">Save</button>
-      <span id="saved" class="ok small" hidden>Save ho gaya</span>
+      <span id="saved" class="ok small" hidden>Saved</span>
     </div>
   </main>
   <script type="module" src="ui/options.js"></script>
