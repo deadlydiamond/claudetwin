@@ -78,6 +78,32 @@ Agar sirf connector chahiye, plugin nahi:
 claude mcp add --transport http --scope user claudetwin https://<host>/mcp/<TOKEN>
 ```
 
+### Claude Code mein khud-ba-khud sync
+
+Plugin mein hooks hain, is liye kuch kehne ki zaroorat nahi:
+
+- **Session shuru hote hi** dono accounts ka aakhri handoff aur haal ki activity Claude ke context mein aa jaati hai.
+- **Har prompt aur Claude ka jawab** connector mein save hota hai, is liye doosra account `search_history` se dhoond sakta hai.
+- Connector band ho to hooks chup chaap kuch nahi karte. Session kabhi nahi rukta.
+
+## 3a. Claude desktop app (chat) mein connector
+
+Desktop app ki chat local MCP server chala sakti hai, is liye public URL ki zaroorat nahi. `~/Library/Application Support/Claude/claude_desktop_config.json` mein ye daalein, phir Claude app restart karein:
+
+```json
+{
+  "mcpServers": {
+    "claudetwin": {
+      "command": "/path/to/node",
+      "args": ["/path/to/claudetwin/connector/src/bridge.js"],
+      "env": { "CLAUDETWIN_URL": "http://localhost:8787", "CLAUDETWIN_TOKEN": "<TOKEN>" }
+    }
+  }
+}
+```
+
+`command` mein `which node` ka poora path dein, kyunke desktop app aapka shell PATH nahi parhti. Ye file poore computer ke liye ek hai, is liye desktop app mein jo bhi account login ho, wo isi token se save karega. `shared` mode mein dono accounts phir bhi sab kuch dekhte hain.
+
 ## 3b. claude.ai mein skill add karein (dono accounts mein)
 
 `plugin/skills/claudetwin` folder ko zip karein aur claude.ai → Settings → Capabilities → Skills mein upload karein.
@@ -156,7 +182,7 @@ Installer banana ho to: `npm run dist` (mac par .dmg, Windows par .exe, Linux pa
 ## Tests
 
 ```bash
-cd connector && npm test   # MCP end-to-end, shared + isolated
+cd connector && npm test   # MCP end-to-end, shared + isolated, stdio bridge
 cd app && npm test         # reset-time parser
 cd extension && npm test   # account switching (cookie swap)
 ```
