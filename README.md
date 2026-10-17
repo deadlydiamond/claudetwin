@@ -96,7 +96,7 @@ Pehli dafa:
 2. Doosre account ke button par click karein. claude.ai logged out khulega. Wahan us account se normal login karein, Google bhi chalega.
 3. Bas. Ab icon se, ya **Alt+Shift+S** se, dono ke darmiyan switch karein. Dobara login nahi karna padta.
 
-Connector ke liye icon → **Settings** mein connector URL aur dono tokens daalein, phir **Connection check karein**. Connector ke baghair bhi switch chalta hai. Connector ho to:
+Connector ke liye icon → **Settings** mein connector URL aur dono tokens daalein, phir **Test connection**. Connector ke baghair bhi switch chalta hai. Connector ho to:
 
 - Dono accounts ke prompts aur jawab connector mein save hote hain, aur **History** side panel mein ek jagah search hote hain.
 - Switch karte waqt aakhri prompt doosre account ke composer mein paste ho jata hai. Send aap khud karte hain.
