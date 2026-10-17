@@ -27,6 +27,23 @@ export type TwinLogin = {
   url?: string
 }
 
+export type TwinSync = {
+  state: 'running' | 'done' | 'failed'
+  // Which profile is being read now, and how far it is.
+  account?: TwinAccount
+  done: number
+  total: number
+  added: number
+  message?: string
+  at?: string
+}
+
+export type TwinStats = {
+  messages: Partial<Record<string, number>>
+  handoffs: number
+  oldest?: string
+}
+
 export type TwinView = {
   session?: TwinAccount
   profiles: Record<TwinAccount, TwinProfile>
@@ -36,6 +53,8 @@ export type TwinView = {
   handoff?: TwinItem
   items: TwinItem[]
   query: string
+  sync?: TwinSync
+  stats?: TwinStats
 }
 
 declare module 'claude-code' {

@@ -1,10 +1,11 @@
 // ClaudeTwin panel (/twin): both Claude accounts' sign-in status with a Log in
 // button, the shared memory's health, the latest handoff with Continue / Save,
-// and search across both accounts' history.
+// search across both accounts' history, and a sync that imports every past
+// Claude Code session of both profiles into the shared memory, with its progress.
 import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register } from 'claude-code'
 
-import type { TwinAccount, TwinItem, TwinProfile, TwinView } from '../types'
+import type { TwinAccount, TwinItem, TwinProfile, TwinStats, TwinSync, TwinView } from '../types'
 
 const PANE = 'claudetwin'
 const ACCOUNTS: TwinAccount[] = ['work', 'personal']
@@ -12,6 +13,9 @@ const LABEL: Record<string, string> = { work: 'Company', personal: 'Personal', s
 // Each account's Claude Code profile: claude-work is the default config, claude-personal its own.
 const PROFILE_DIR: Record<TwinAccount, string | undefined> = { work: undefined, personal: '.claude-personal' }
 const COMMAND: Record<TwinAccount, string> = { work: 'claude-work', personal: 'claude-personal' }
+// Must match .claude-plugin/plugin.json: the installed copy of the sync script lives under it.
+const VERSION = '1.3.0'
+const REPO_SCRIPT = '~/Projects/claudetwin/plugin/scripts/sync-history.mjs'
 
 const CONTINUE_PROMPT =
   'Continue the latest ClaudeTwin handoff: load it with claudetwin get_handoff (and list_recent if useful), then carry on with the next steps.'
@@ -67,27 +71,36 @@ async function readProfile($: EngineInterface, account: TwinAccount): Promise<Tw
 
 type Conn = { base: string; token: string }
 
+const expand = async ($: EngineInterface, p: string) => p.replace(/^~(?=\/)/, await home($))
+
+// The connector's .env, when this machine has one: its port and both accounts' tokens.
+async function connectorEnv($: EngineInterface): Promise<Record<string, string> | undefined> {
+  const file = await expand($, String(settings.env_file || '~/Projects/claudetwin/connector/.env'))
+  try {
+    return Object.fromEntries(
+      String(await $.fs.read(file))
+        .split('\n')
+        .filter(l => /^[A-Z_]+=/.test(l))
+        .map(l => [l.slice(0, l.indexOf('=')), l.slice(l.indexOf('=') + 1).trim()]),
+    )
+  } catch {
+    return undefined
+  }
+}
+
+const isPersonalSession = async ($: EngineInterface) => /personal/i.test((await $.env.get('CLAUDE_CONFIG_DIR')) || '')
+
 // The plugin's own options first; else the connector's .env, picking this profile's token.
 async function connection($: EngineInterface): Promise<Conn | { problem: string }> {
   const url = String(settings.connector_url || '').replace(/\/+$/, '')
   const token = String(settings.account_token || '')
   if (url && token) return { base: url, token }
 
-  const file = String(settings.env_file || '~/Projects/claudetwin/connector/.env').replace(/^~(?=\/)/, await home($))
-  try {
-    const env = Object.fromEntries(
-      String(await $.fs.read(file))
-        .split('\n')
-        .filter(l => /^[A-Z_]+=/.test(l))
-        .map(l => [l.slice(0, l.indexOf('=')), l.slice(l.indexOf('=') + 1).trim()]),
-    )
-    const isPersonal = /personal/i.test((await $.env.get('CLAUDE_CONFIG_DIR')) || '')
-    const fromEnv = env[isPersonal ? 'CLAUDETWIN_PERSONAL_TOKEN' : 'CLAUDETWIN_WORK_TOKEN']
-    if (!fromEnv) return { problem: `No token found. Set the plugin's connector URL and account token.` }
-    return { base: url || `http://localhost:${env.PORT || 8787}`, token: fromEnv }
-  } catch {
-    return { problem: `Connector not set up. Set the plugin's connector URL and account token.` }
-  }
+  const env = await connectorEnv($)
+  if (!env) return { problem: `Connector not set up. Set the plugin's connector URL and account token.` }
+  const fromEnv = env[(await isPersonalSession($)) ? 'CLAUDETWIN_PERSONAL_TOKEN' : 'CLAUDETWIN_WORK_TOKEN']
+  if (!fromEnv) return { problem: `No token found. Set the plugin's connector URL and account token.` }
+  return { base: url || `http://localhost:${env.PORT || 8787}`, token: fromEnv }
 }
 
 async function api($: EngineInterface, c: Conn, path: string) {
@@ -106,10 +119,12 @@ async function refresh($: EngineInterface, query?: string) {
     return
   }
   try {
-    const [who, { handoff }, { items: recent }] = await Promise.all([
+    const [who, { handoff }, { items: recent }, stats] = await Promise.all([
       api($, c, '/api/whoami'),
       api($, c, '/api/handoff'),
       api($, c, '/api/history?limit=200'),
+      // Older connectors have no stats; the panel then just leaves the count out.
+      api($, c, '/api/stats').catch(() => undefined) as Promise<TwinStats | undefined>,
     ])
     const found: TwinItem[] = q ? (await api($, c, `/api/history?limit=30&q=${encodeURIComponent(q)}`)).items : recent
     for (const a of ACCOUNTS) profiles[a].lastActivity = (recent as TwinItem[]).find(i => i.space === a)?.at
@@ -120,6 +135,7 @@ async function refresh($: EngineInterface, query?: string) {
       connector: 'ok',
       error: undefined,
       handoff: handoff ?? undefined,
+      stats: stats && typeof stats.messages === 'object' ? stats : undefined,
       items: found.filter(i => !(handoff && i.id === handoff.id)).slice(0, 30),
       query: q,
     }))
@@ -179,12 +195,115 @@ async function logIn($: EngineInterface, account: TwinAccount) {
   await refresh($)
 }
 
+// A node the host can start; the desktop app's PATH may not include nvm's.
+async function nodeBinary($: EngineInterface): Promise<string | undefined> {
+  const h = await home($)
+  for (const p of ['/opt/homebrew/bin/node', '/usr/local/bin/node']) if (await $.fs.exists(p)) return p
+  try {
+    const versions = (await $.fs.list(`${h}/.nvm/versions/node`)).filter(d => d.kind === 'dir').map(d => d.name)
+    const newest = versions.sort((a, b) => b.localeCompare(a, undefined, { numeric: true }))[0]
+    if (newest && (await $.fs.exists(`${h}/.nvm/versions/node/${newest}/bin/node`))) return `${h}/.nvm/versions/node/${newest}/bin/node`
+  } catch {
+    /* no nvm */
+  }
+  return undefined
+}
+
+// The installed copy of the sync script for this profile, else the repository's.
+async function syncScript($: EngineInterface): Promise<string | undefined> {
+  const configDir = (await $.env.get('CLAUDE_CONFIG_DIR')) || `${await home($)}/.claude`
+  for (const p of [`${configDir}/plugins/cache/claudetwin/claudetwin/${VERSION}/scripts/sync-history.mjs`, await expand($, REPO_SCRIPT)]) {
+    if (await $.fs.exists(p)) return p
+  }
+  return undefined
+}
+
+const setSync = ($: EngineInterface, fn: (s: TwinSync) => TwinSync) =>
+  update($, view, (v): TwinView => ({ ...v, sync: fn(v.sync ?? { state: 'running', done: 0, total: 0, added: 0 }) }))
+
+let isSyncing = false
+
+// Imports every past session of both profiles (each with its own token); a re-run reads only
+// transcripts that changed since, so it is quick after the first time.
+async function syncHistory($: EngineInterface) {
+  if (isSyncing) return
+  isSyncing = true
+  try {
+    const c = await connection($)
+    if ('problem' in c) return
+    const [node, script] = await Promise.all([nodeBinary($), syncScript($)])
+    if (!node || !script) {
+      await setSync($, () => ({ state: 'failed', done: 0, total: 0, added: 0, message: 'Sync needs Node.js and the ClaudeTwin sync script.' }))
+      return
+    }
+    const here: TwinAccount = (await isPersonalSession($)) ? 'personal' : 'work'
+    const env = await connectorEnv($)
+    const tokenFor = (a: TwinAccount) => (a === here ? c.token : env?.[a === 'work' ? 'CLAUDETWIN_WORK_TOKEN' : 'CLAUDETWIN_PERSONAL_TOKEN'])
+    let added = 0
+    for (const account of [here, ...ACCOUNTS.filter(a => a !== here)]) {
+      const token = tokenFor(account)
+      const dir = PROFILE_DIR[account] ? `${await home($)}/${PROFILE_DIR[account]}` : `${await home($)}/.claude`
+      if (!token || !(await $.fs.exists(`${dir}/projects`))) continue
+      await setSync($, () => ({ state: 'running', account, done: 0, total: 0, added, message: `Reading ${LABEL[account]} history…` }))
+      const run = $.process.spawn({ argv: [node, script, c.base, token, dir] })
+      let failed: string | undefined
+      let buffer = ''
+      for await (const { stream, text } of run) {
+        if (stream !== 'stdout') continue
+        buffer += text
+        const lines = buffer.split('\n')
+        buffer = lines.pop() ?? ''
+        for (const line of lines) {
+          let p: { phase: string; done?: number; total?: number; added?: number; message?: string }
+          try {
+            p = JSON.parse(line)
+          } catch {
+            continue
+          }
+          if (p.phase === 'error') failed = p.message
+          else
+            await setSync($, s => ({
+              ...s,
+              done: p.done ?? (p.phase === 'done' ? p.total ?? s.total : s.done),
+              total: p.total ?? s.total,
+              added: added + (p.added ?? 0),
+            }))
+        }
+      }
+      const { code } = await run.result
+      if (failed || code !== 0) {
+        await setSync($, s => ({ ...s, state: 'failed', message: `${LABEL[account]} sync failed: ${failed ?? `exit ${code}`}` }))
+        return
+      }
+      added = (await read($, view)).sync?.added ?? added
+    }
+    await setSync($, s => ({ ...s, state: 'done', account: undefined, added, message: undefined, at: new Date().toISOString() }))
+  } catch (err) {
+    await setSync($, s => ({ ...s, state: 'failed', message: `Sync could not run here (${(err as Error).message}).` }))
+  } finally {
+    isSyncing = false
+    await refresh($)
+  }
+}
+
+function bar(done: number, total: number, width = 20): string {
+  const filled = total ? Math.round((done / total) * width) : 0
+  return '█'.repeat(filled) + '░'.repeat(width - filled)
+}
+
+const count = (n = 0) => n.toLocaleString('en-US')
+
+function since(iso?: string): string {
+  if (!iso) return ''
+  return ` · since ${new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}`
+}
+
 export const register: Register = (on, options) => {
   settings = options
 
   on('session.start', async ($, e, next) => {
     await $.command.register({ name: 'twin', description: 'Open the ClaudeTwin panel: both accounts, shared memory, handoffs' })
-    void refresh($)
+    void refresh($).then(() => syncHistory($))
     $.clock.every(30_000, () => refresh($))
     return next(e)
   })
@@ -201,8 +320,11 @@ export const register: Register = (on, options) => {
     // Not every surface has a text field; without one the panel shows recent items only.
     const Input = 'Input' in ui ? ui.Input : undefined
     const v = await read($, view)
+    const sync = v.sync
+    const isSyncRunning = sync?.state === 'running'
+    const total = Object.values(v.stats?.messages ?? {}).reduce((a: number, b) => a + (b ?? 0), 0)
     const memory =
-      v.connector === 'ok' ? 'synced' : v.connector === 'loading' ? 'checking…' : v.connector === 'down' ? 'not reachable' : 'not set up'
+      v.connector === 'ok' ? (isSyncRunning ? 'syncing…' : 'synced') : v.connector === 'loading' ? 'checking…' : v.connector === 'down' ? 'not reachable' : 'not set up'
 
     return (
       <Box flexDirection="column" gap={1}>
@@ -246,6 +368,35 @@ export const register: Register = (on, options) => {
             <Text dimColor> · {memory}</Text>
           </Text>
           {v.error && <Text color="red">{v.error}</Text>}
+          {v.stats && (
+            <Text key="stats" dimColor>
+              {count(total)} messages ({ACCOUNTS.map(a => `${LABEL[a]} ${count(v.stats!.messages[a])}`).join(', ')}) · {count(v.stats.handoffs)} handoffs
+              {since(v.stats.oldest)}
+            </Text>
+          )}
+          {isSyncRunning && (
+            <Box key="sync-progress" flexDirection="column">
+              <Text>
+                <Text color="cyan">{bar(sync.done, sync.total)} </Text>
+                <Text bold>{sync.total ? `${Math.floor((sync.done / sync.total) * 100)}%` : '…'}</Text>
+              </Text>
+              <Text dimColor>
+                {sync.total ? `Syncing ${LABEL[sync.account ?? 'work']} history · ${count(sync.done)}/${count(sync.total)} sessions` : sync.message}
+                {` · ${count(sync.added)} new messages`}
+              </Text>
+            </Box>
+          )}
+          {sync?.state === 'done' && (
+            <Text key="sync-done" dimColor>
+              History synced {ago(sync.at)}
+              {sync.added ? ` · ${count(sync.added)} new messages` : ' · up to date'}
+            </Text>
+          )}
+          {sync?.state === 'failed' && (
+            <Text key="sync-failed" color="red">
+              {sync.message}
+            </Text>
+          )}
           {v.handoff ? (
             <Box flexDirection="column">
               <Text>
@@ -271,6 +422,9 @@ export const register: Register = (on, options) => {
             </Button>
             <Button key="refresh" onPress={() => void refresh($)}>
               Refresh
+            </Button>
+            <Button key="sync" onPress={() => void syncHistory($)}>
+              {isSyncRunning ? 'Syncing…' : 'Sync all history'}
             </Button>
           </Box>
         </Box>
