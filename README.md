@@ -78,6 +78,21 @@ Agar sirf connector chahiye, plugin nahi:
 claude mcp add --transport http --scope user claudetwin https://<host>/mcp/<TOKEN>
 ```
 
+### `/twin` panel
+
+Claude Code mein `/twin` likhein to ClaudeTwin ka panel khulta hai:
+
+- **Accounts:** Company aur Personal dono, login hai ya nahi, kaunsi email aur plan, aakhri activity kab hui, aur ye session kis account ka hai. Jis account ka login nahi, us ke saath **Log in** button hai jo browser mein us account ka sign-in kholta hai.
+- **Shared memory:** sync chal raha hai ya nahi, aakhri handoff, aur **Continue here** / **Save handoff** buttons.
+- **Search:** dono accounts ki history.
+
+Do accounts ke liye do Claude Code profiles chahiye: `claude-work` (default `~/.claude`) aur `claude-personal` (`CLAUDE_CONFIG_DIR=~/.claude-personal`). `~/.zshrc` mein:
+
+```bash
+claude-work() { env -u CLAUDE_CONFIG_DIR claude "$@"; }
+claude-personal() { CLAUDE_CONFIG_DIR="$HOME/.claude-personal" claude "$@"; }
+```
+
 ### Claude Code mein khud-ba-khud sync
 
 Plugin mein hooks hain, is liye kuch kehne ki zaroorat nahi:

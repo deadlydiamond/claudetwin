@@ -1,0 +1,45 @@
+export type TwinAccount = 'work' | 'personal'
+
+export type TwinItem = {
+  id: string
+  kind: 'handoff' | 'message'
+  space: string
+  at: string
+  role?: 'user' | 'assistant'
+  text?: string
+  chatTitle?: string
+  title?: string
+  summary?: string
+  nextSteps?: string[]
+}
+
+export type TwinProfile = {
+  isLoggedIn: boolean
+  email?: string
+  plan?: string
+  lastActivity?: string
+}
+
+export type TwinLogin = {
+  account: TwinAccount
+  state: 'running' | 'done' | 'failed'
+  message: string
+  url?: string
+}
+
+export type TwinView = {
+  session?: TwinAccount
+  profiles: Record<TwinAccount, TwinProfile>
+  login?: TwinLogin
+  connector: 'ok' | 'down' | 'not-set-up' | 'loading'
+  error?: string
+  handoff?: TwinItem
+  items: TwinItem[]
+  query: string
+}
+
+declare module 'claude-code' {
+  interface PluginState {
+    claudetwin: { view: TwinView }
+  }
+}

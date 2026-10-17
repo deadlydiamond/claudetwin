@@ -192,6 +192,10 @@ const httpServer = http.createServer(async (req, res) => {
       if (url.pathname === '/api/handoff' && req.method === 'GET') {
         return send(res, 200, { handoff: store.latestHandoff(canSee) });
       }
+      // Which account a token belongs to, so a UI can label itself.
+      if (url.pathname === '/api/whoami' && req.method === 'GET') {
+        return send(res, 200, { space, mode: MODE });
+      }
     }
 
     send(res, 404, { error: 'not found' });

@@ -8,7 +8,11 @@
           {
             "type": "command",
             "command": "node",
-            "args": ["${CLAUDE_PLUGIN_ROOT}/scripts/session-start.mjs", "${user_config.connector_url}", "${user_config.account_token}"],
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/scripts/session-start.mjs",
+              "${user_config.connector_url}",
+              "${user_config.account_token}"
+            ],
             "timeout": 10
           }
         ]
@@ -20,7 +24,12 @@
           {
             "type": "command",
             "command": "node",
-            "args": ["${CLAUDE_PLUGIN_ROOT}/scripts/log-turn.mjs", "prompt", "${user_config.connector_url}", "${user_config.account_token}"],
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/scripts/log-turn.mjs",
+              "prompt",
+              "${user_config.connector_url}",
+              "${user_config.account_token}"
+            ],
             "timeout": 10
           }
         ]
@@ -32,11 +41,19 @@
           {
             "type": "command",
             "command": "node",
-            "args": ["${CLAUDE_PLUGIN_ROOT}/scripts/log-turn.mjs", "reply", "${user_config.connector_url}", "${user_config.account_token}"],
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/scripts/log-turn.mjs",
+              "reply",
+              "${user_config.connector_url}",
+              "${user_config.account_token}"
+            ],
             "timeout": 10
           }
         ]
       }
     ]
-  }
+  },
+  "modules": [
+    "./register.tsx"
+  ]
 }

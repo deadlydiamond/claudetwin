@@ -95,3 +95,10 @@ test('isolated mode hides the other account unless shared', async () => {
     p.kill();
   }
 });
+
+test('whoami names the account a token belongs to', async () => {
+  const who = async (token) => (await fetch(`${base}/api/whoami`, { headers: { authorization: `Bearer ${token}` } })).json();
+  assert.deepEqual(await who(WORK), { space: 'work', mode: 'shared' });
+  assert.equal((await who(PERSONAL)).space, 'personal');
+  assert.equal((await fetch(`${base}/api/whoami`, { headers: { authorization: 'Bearer nope' } })).status, 401);
+});
