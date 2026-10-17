@@ -1,0 +1,15 @@
+{
+  "name": "claudetwin",
+  "description": "ClaudeTwin: one memory for your Company and Personal Claude accounts.",
+  "owner": {
+    "name": "Omer",
+    "url": "https://github.com/deadlydiamond"
+  },
+  "plugins": [
+    {
+      "name": "claudetwin",
+      "source": "./plugin",
+      "description": "Shared memory and handoffs between two Claude accounts (Company + Personal) via the ClaudeTwin connector."
+    }
+  ]
+}

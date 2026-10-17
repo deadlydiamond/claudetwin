@@ -1,0 +1,7 @@
+node_modules/
+data/
+dist/
+.env
+*.log
+*.zip
+claudetwin-preview.png

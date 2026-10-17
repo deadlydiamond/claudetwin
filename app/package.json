@@ -1,0 +1,25 @@
+{
+  "name": "claudetwin",
+  "productName": "ClaudeTwin",
+  "version": "1.0.0",
+  "description": "Company + Personal Claude in one window: auto-switch on usage limit, central history via the ClaudeTwin connector.",
+  "main": "main.js",
+  "private": true,
+  "scripts": {
+    "start": "electron .",
+    "test": "node test/reset.test.js",
+    "dist": "electron-builder"
+  },
+  "devDependencies": {
+    "electron": "^44.0.0",
+    "electron-builder": "^26.0.0"
+  },
+  "build": {
+    "appId": "com.claudetwin.app",
+    "productName": "ClaudeTwin",
+    "files": ["main.js", "preload.js", "webview-preload.js", "config.json", "renderer/**"],
+    "mac": { "target": "dmg", "category": "public.app-category.productivity" },
+    "win": { "target": "nsis" },
+    "linux": { "target": "AppImage" }
+  }
+}
