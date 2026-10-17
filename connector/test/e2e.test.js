@@ -134,3 +134,19 @@ test('migrates a log kept inside claudetwin.json to log.jsonl', async () => {
   assert.equal(JSON.parse(fs.readFileSync(path.join(dir, 'claudetwin.json'), 'utf8')).log, undefined);
   assert.equal(new Store(dir).recent(() => true, 10).length, 1);
 });
+
+test('handoffs scope exposes only handoff tools and never returns messages', async () => {
+  const c = new Client({ name: 'test', version: '1.0.0' });
+  await c.connect(new StreamableHTTPClientTransport(new URL(`${base}/mcp/${WORK}/handoffs`)));
+  const { tools } = await c.listTools();
+  assert.deepEqual(tools.map((t) => t.name).sort(), ['get_handoff', 'list_handoffs', 'save_handoff', 'search_handoffs']);
+  await c.callTool({ name: 'save_handoff', arguments: { title: 'Bridge task', summary: 'reel script draft' } });
+  const out = text(await c.callTool({ name: 'search_handoffs', arguments: { query: 'reel' } }));
+  assert.match(out, /Bridge task/);
+  assert.doesNotMatch(out, /aloo bhai/);
+  await c.close();
+
+  const auth = { authorization: `Bearer ${WORK}` };
+  const h = await (await fetch(`${base}/api/history?only=handoffs&q=reel`, { headers: auth })).json();
+  assert.ok(h.items.length > 0 && h.items.every((i) => i.kind === 'handoff'));
+});

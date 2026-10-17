@@ -57,9 +57,12 @@ const fmt = (items) =>
         .join('\n\n')
     : 'Nothing found.';
 
-function buildServer(space) {
+// scope 'all': handoffs and the message log. scope 'handoffs': handoff tools only, for clients
+// that never send or read conversation logs (the TwinBridge plugin).
+function buildServer(space, scope = 'all') {
   const canSee = visibility(space);
   const server = new McpServer({ name: 'claudetwin', version: '1.0.0' });
+  const handoffsOnly = scope === 'handoffs';
 
   server.tool(
     'save_handoff',
@@ -100,6 +103,22 @@ function buildServer(space) {
       return { content: [{ type: 'text', text }] };
     }
   );
+
+  if (handoffsOnly) {
+    server.tool(
+      'search_handoffs',
+      'Search saved handoffs from both Claude accounts.',
+      { query: z.string().max(300), limit: z.number().int().min(1).max(30).optional() },
+      async ({ query, limit }) => ({ content: [{ type: 'text', text: fmt(store.searchHandoffs(canSee, query, limit || 10)) }] })
+    );
+    server.tool(
+      'list_handoffs',
+      'List the most recent handoffs from both Claude accounts.',
+      { limit: z.number().int().min(1).max(50).optional() },
+      async ({ limit }) => ({ content: [{ type: 'text', text: fmt(store.recentHandoffs(canSee, limit || 10)) }] })
+    );
+    return server;
+  }
 
   server.tool(
     'search_history',
@@ -152,7 +171,7 @@ const httpServer = http.createServer(async (req, res) => {
     if (url.pathname === '/health') return send(res, 200, { ok: true, mode: MODE });
 
     // MCP endpoint: /mcp/<token>  (stateless: fresh server per request)
-    const mcp = url.pathname.match(/^\/mcp\/([^/]+)\/?$/);
+    const mcp = url.pathname.match(/^\/mcp\/([^/]+)(?:\/(handoffs))?\/?$/);
     if (mcp) {
       const space = spaceForToken(decodeURIComponent(mcp[1]));
       if (!space) return send(res, 401, { error: 'unknown token' });
@@ -160,7 +179,7 @@ const httpServer = http.createServer(async (req, res) => {
         return send(res, 405, { jsonrpc: '2.0', error: { code: -32000, message: 'Method not allowed' }, id: null });
       }
       const body = await readBody(req);
-      const server = buildServer(space);
+      const server = buildServer(space, mcp[2] === 'handoffs' ? 'handoffs' : 'all');
       const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined });
       res.on('close', () => {
         transport.close();
@@ -196,6 +215,9 @@ const httpServer = http.createServer(async (req, res) => {
       if (url.pathname === '/api/history' && req.method === 'GET') {
         const q = url.searchParams.get('q') || '';
         const limit = Math.min(Number(url.searchParams.get('limit')) || 100, 500);
+        if (url.searchParams.get('only') === 'handoffs') {
+          return send(res, 200, { items: q ? store.searchHandoffs(canSee, q, limit) : store.recentHandoffs(canSee, limit) });
+        }
         return send(res, 200, { items: q ? store.search(canSee, q, limit) : store.recent(canSee, limit) });
       }
       if (url.pathname === '/api/handoff' && req.method === 'GET') {
