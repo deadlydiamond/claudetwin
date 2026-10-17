@@ -58,6 +58,9 @@ for (const surface of ['terminal', 'desktop'] as const) {
     expect(texts).toContain('Billing refactor')
     expect(texts).toContain('deploy the api')
     expect(await ui.find({ key: 'login-personal' })).toBeFalsy()
+    // Desktop draws the branded header as a vector lockup; the terminal as text.
+    if (surface === 'desktop') expect((await ui.findAll({ type: 'Svg' })).length).toBeGreaterThan(0)
+    else expect(texts).toContain('Omer Bin Saleem')
   })
 
   test(`${surface}: a signed-out account gets a Log in button that runs claude auth login for its profile`, { options: OPTIONS }, async ($, on) => {
@@ -122,7 +125,7 @@ test('Sync all history imports both profiles and shows progress', { options: OPT
       : { value: login('me@company.com', 'claude_team') },
   )
   on('fs.exists', async (_$, e) => ({
-    value: e.path === '/opt/homebrew/bin/node' || e.path.includes('/1.3.0/scripts/sync-history.mjs') || e.path.endsWith('/projects'),
+    value: e.path === '/opt/homebrew/bin/node' || e.path.includes('/1.4.0/scripts/sync-history.mjs') || e.path.endsWith('/projects'),
   }))
   on('http.fetch', async (_$, e) => {
     const body = e.url.endsWith('/api/whoami')
@@ -159,6 +162,7 @@ test('Sync all history imports both profiles and shows progress', { options: OPT
   expect(spawned[1][4]).toBe(`${HOME}/.claude-personal`)
   const after = (await ui.findAll({ type: 'Text' })).map(t => t.text).join('\n')
   expect(after).toContain('2,000 new messages')
-  expect(after).toContain('18,215 messages')
-  expect(after).toContain('since 12 Jul 2025')
+  expect(after).toContain('18,215')
+  expect(after).toContain('Company 18,175 · Personal 40')
+  expect(after).toContain('12 Jul 2025')
 })

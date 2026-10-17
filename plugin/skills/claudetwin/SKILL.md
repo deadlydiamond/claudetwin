@@ -5,7 +5,7 @@ description: Use with the ClaudeTwin connector when the user works across two Cl
 
 # ClaudeTwin
 
-The user runs two Claude accounts (usually Company and Personal) that share one memory through the **claudetwin** connector. When one account hits its usage limit, the ClaudeTwin app switches to the other. Your job is to make that switch seamless.
+The user runs two Claude accounts (usually Company and Personal) that share one memory through the **claudetwin** connector. They move between them during the day, for example finishing at home what they started at the office. Your job is to make picking the work up in the other account easy.
 
 ## When a session starts or resumes
 
@@ -19,7 +19,7 @@ Use `search_history` when the user mentions something from "the other account" o
 
 ## When to save a handoff
 
-The previous account can't save anything once its limit is hit, so save **before** that happens. Call `save_handoff`:
+Save while the context is fresh, so the other account starts from where this one stopped. Call `save_handoff`:
 - After each meaningful milestone in multi-step work (a feature done, a decision made, a draft finished).
 - Before a long answer or a large code change in a session that already has several turns.
 - Whenever the user says handoff, save, twin, or that they are about to switch.

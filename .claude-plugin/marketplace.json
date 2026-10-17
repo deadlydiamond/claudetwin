@@ -1,15 +1,25 @@
 {
   "name": "claudetwin",
-  "description": "ClaudeTwin: one memory for your Company and Personal Claude accounts.",
   "owner": {
-    "name": "Omer",
+    "name": "Omer Bin Saleem",
     "url": "https://github.com/deadlydiamond"
+  },
+  "metadata": {
+    "description": "ClaudeTwin by Omer Bin Saleem: one memory for your two Claude accounts.",
+    "version": "1.4.0"
   },
   "plugins": [
     {
       "name": "claudetwin",
       "source": "./plugin",
-      "description": "Shared memory and handoffs between two Claude accounts (Company + Personal) via the ClaudeTwin connector."
+      "description": "One memory for your two Claude accounts. Handoffs, full history search across both, and a /twin panel that shows both sign-ins and syncs your past sessions.",
+      "version": "1.4.0",
+      "author": { "name": "Omer Bin Saleem", "url": "https://github.com/deadlydiamond" },
+      "homepage": "https://github.com/deadlydiamond/claudetwin",
+      "repository": "https://github.com/deadlydiamond/claudetwin",
+      "license": "MIT",
+      "category": "productivity",
+      "keywords": ["memory", "handoff", "multi-account", "context", "history"]
     }
   ]
 }
