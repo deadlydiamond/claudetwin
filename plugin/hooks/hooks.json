@@ -1,0 +1,42 @@
+{
+  "description": "ClaudeTwin: load shared context at session start, log prompts and replies to the connector.",
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "startup|resume|clear|compact",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node",
+            "args": ["${CLAUDE_PLUGIN_ROOT}/scripts/session-start.mjs", "${user_config.connector_url}", "${user_config.account_token}"],
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node",
+            "args": ["${CLAUDE_PLUGIN_ROOT}/scripts/log-turn.mjs", "prompt", "${user_config.connector_url}", "${user_config.account_token}"],
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node",
+            "args": ["${CLAUDE_PLUGIN_ROOT}/scripts/log-turn.mjs", "reply", "${user_config.connector_url}", "${user_config.account_token}"],
+            "timeout": 10
+          }
+        ]
+      }
+    ]
+  }
+}
