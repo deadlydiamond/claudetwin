@@ -1,0 +1,23 @@
+{
+  "manifest_version": 3,
+  "name": "ClaudeTwin",
+  "version": "1.0.0",
+  "description": "Company and Personal Claude in one browser: one-click account switch, shared history and handoffs.",
+  "minimum_chrome_version": "116",
+  "permissions": ["cookies", "storage", "tabs", "sidePanel"],
+  "host_permissions": ["https://claude.ai/*", "http://localhost/*", "http://127.0.0.1/*"],
+  "background": { "service_worker": "background.js", "type": "module" },
+  "action": { "default_popup": "popup.html", "default_title": "ClaudeTwin" },
+  "side_panel": { "default_path": "sidepanel.html" },
+  "options_page": "options.html",
+  "content_scripts": [
+    { "matches": ["https://claude.ai/*"], "js": ["content.js"], "run_at": "document_idle" }
+  ],
+  "commands": {
+    "switch-other": {
+      "suggested_key": { "default": "Alt+Shift+S" },
+      "description": "Switch to the other Claude account"
+    }
+  },
+  "icons": { "16": "icons/16.png", "32": "icons/32.png", "48": "icons/48.png", "128": "icons/128.png" }
+}
