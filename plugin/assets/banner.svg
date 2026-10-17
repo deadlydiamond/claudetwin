@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="240" viewBox="0 0 960 240" role="img" aria-label="ClaudeTwin by Omer Bin Saleem: one memory for your two Claude accounts">
+  <defs>
+    <linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#0B8F8C"/><stop offset=".45" stop-color="#00A7C4"/><stop offset="1" stop-color="#6A4CF0"/></linearGradient>
+    <linearGradient id="t" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#0B8F8C"/><stop offset=".45" stop-color="#00A7C4"/><stop offset="1" stop-color="#6A4CF0"/></linearGradient>
+    <linearGradient id="s" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".28"/><stop offset=".5" stop-color="#fff" stop-opacity="0"/></linearGradient>
+  </defs>
+  <rect width="960" height="240" rx="28" fill="#F0EEE9"/>
+  <g transform="translate(56 48) scale(0.28125)">
+    <rect width="512" height="512" rx="116" fill="url(#g)"/><rect width="512" height="512" rx="116" fill="url(#s)"/>
+    <circle cx="206" cy="246" r="96" fill="none" stroke="#fff" stroke-width="44"/>
+    <circle cx="306" cy="246" r="96" fill="none" stroke="#fff" stroke-opacity=".78" stroke-width="44"/>
+    <circle cx="404" cy="400" r="20" fill="#C8F560"/>
+  </g>
+  <text x="236" y="112" font-family="-apple-system, 'SF Pro Display', 'Helvetica Neue', Arial, sans-serif" font-weight="800" font-size="60" letter-spacing="-2" fill="#191B1E">ClaudeTwin</text>
+  <text x="238" y="152" font-family="-apple-system, 'SF Pro Display', 'Helvetica Neue', Arial, sans-serif" font-weight="700" font-size="24" letter-spacing="-0.5" fill="url(#t)">One memory for your two Claude accounts.</text>
+  <text x="238" y="186" font-family="-apple-system, 'SF Pro Text', 'Helvetica Neue', Arial, sans-serif" font-size="16" fill="#5F6368">by Omer Bin Saleem · Build with AI</text>
+</svg>

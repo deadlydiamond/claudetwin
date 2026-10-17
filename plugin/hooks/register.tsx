@@ -5,6 +5,7 @@
 import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register } from 'claude-code'
 
+import { BRAND, headerSvg, progressSvg, progressText } from './brand'
 import type { TwinAccount, TwinItem, TwinProfile, TwinStats, TwinSync, TwinView } from '../types'
 
 const PANE = 'claudetwin'
@@ -14,7 +15,7 @@ const LABEL: Record<string, string> = { work: 'Company', personal: 'Personal', s
 const PROFILE_DIR: Record<TwinAccount, string | undefined> = { work: undefined, personal: '.claude-personal' }
 const COMMAND: Record<TwinAccount, string> = { work: 'claude-work', personal: 'claude-personal' }
 // Must match .claude-plugin/plugin.json: the installed copy of the sync script lives under it.
-const VERSION = '1.3.0'
+const VERSION = '1.4.0'
 const REPO_SCRIPT = '~/Projects/claudetwin/plugin/scripts/sync-history.mjs'
 
 const CONTINUE_PROMPT =
@@ -286,16 +287,11 @@ async function syncHistory($: EngineInterface) {
   }
 }
 
-function bar(done: number, total: number, width = 20): string {
-  const filled = total ? Math.round((done / total) * width) : 0
-  return '█'.repeat(filled) + '░'.repeat(width - filled)
-}
-
 const count = (n = 0) => n.toLocaleString('en-US')
 
 function since(iso?: string): string {
   if (!iso) return ''
-  return ` · since ${new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}`
+  return `${new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}`
 }
 
 export const register: Register = (on, options) => {
@@ -317,119 +313,207 @@ export const register: Register = (on, options) => {
   on('ui.render', { component: 'Pane', requestId: PANE }, async ($, e) => {
     const ui = $.ui.resolve(e)
     const { Box, Text, Button } = ui
-    // Not every surface has a text field; without one the panel shows recent items only.
+    // Not every surface has a text field or vector drawings; without them the panel falls back to text.
     const Input = 'Input' in ui ? ui.Input : undefined
+    // The terminal draws no vectors; there the header and the bar are text.
+    const Svg = e.surface !== 'terminal' && 'Svg' in ui ? ui.Svg : undefined
     const v = await read($, view)
     const sync = v.sync
     const isSyncRunning = sync?.state === 'running'
+    const fraction = sync?.total ? sync.done / sync.total : 0
+    const status =
+      v.connector === 'ok'
+        ? isSyncRunning
+          ? { label: 'Syncing', tone: 'busy' as const, text: 'syncing…' }
+          : { label: 'Synced', tone: 'ok' as const, text: 'synced' }
+        : v.connector === 'loading'
+          ? { label: 'Checking', tone: 'busy' as const, text: 'checking…' }
+          : v.connector === 'down'
+            ? { label: 'Offline', tone: 'off' as const, text: 'not reachable' }
+            : { label: 'Not set up', tone: 'off' as const, text: 'not set up' }
+    const toneColor = status.tone === 'ok' ? 'success' : status.tone === 'busy' ? BRAND.cyan : 'warning'
     const total = Object.values(v.stats?.messages ?? {}).reduce((a: number, b) => a + (b ?? 0), 0)
-    const memory =
-      v.connector === 'ok' ? (isSyncRunning ? 'syncing…' : 'synced') : v.connector === 'loading' ? 'checking…' : v.connector === 'down' ? 'not reachable' : 'not set up'
+
+    const Section = ({ title, aside, children }: { title: string; aside?: string; children?: JSX.Children }) => (
+      <Box flexDirection="column" gap={1} borderStyle="round" borderColor="subtle" paddingX={1} paddingY={0}>
+        <Box flexDirection="row" justifyContent="space-between">
+          <Text bold dimColor>
+            {title.toUpperCase()}
+          </Text>
+          {aside ? (
+            <Text dimColor>
+              {aside}
+            </Text>
+          ) : null}
+        </Box>
+        {children}
+      </Box>
+    )
+
+    const Stat = ({ id, value, label }: { id: string; value: string; label: string }) => (
+      <Box key={id} flexDirection="column" flexGrow={1} minWidth={10}>
+        <Text bold>
+          {value}
+        </Text>
+        <Text dimColor>
+          {label}
+        </Text>
+      </Box>
+    )
 
     return (
-      <Box flexDirection="column" gap={1}>
-        <Box flexDirection="column">
-          <Text bold>Accounts</Text>
-          {ACCOUNTS.map(a => {
-            const p = v.profiles[a]
-            const isHere = v.session === a
-            const isLoggingIn = v.login?.account === a && v.login.state === 'running'
-            return (
-              <Box key={`acct-${a}`} flexDirection="column">
-                <Text>
-                  <Text color={p.isLoggedIn ? 'green' : 'yellow'}>{p.isLoggedIn ? '●' : '○'} </Text>
-                  <Text bold>{LABEL[a]}</Text>
-                  {isHere && <Text dimColor> · this session</Text>}
-                </Text>
-                <Text dimColor>
-                  {p.isLoggedIn ? [p.email, p.plan].filter(Boolean).join(' · ') : 'Not signed in'}
-                  {p.isLoggedIn ? ` · ${ago(p.lastActivity)}` : ''}
-                </Text>
-                {!p.isLoggedIn && (
-                  <Button key={`login-${a}`} variant="primary" onPress={() => void logIn($, a)}>
-                    {isLoggingIn ? 'Signing in…' : `Log in to ${LABEL[a]}`}
-                  </Button>
-                )}
-                {p.isLoggedIn && !isHere && <Text dimColor>Work in it: run {COMMAND[a]} in a terminal.</Text>}
-              </Box>
-            )
-          })}
+      <Box flexDirection="column" gap={1} paddingY={0}>
+        {Svg ? (
+          <Svg key="brand" source={headerSvg(status)} alt={`ClaudeTwin by ${BRAND.author}. Shared memory ${status.text}.`} width={360} height={56} />
+        ) : (
+          <Box key="brand" flexDirection="column">
+            <Text>
+              <Text bold color={BRAND.cyan}>
+                ClaudeTwin
+              </Text>
+              <Text color={toneColor}> ● </Text>
+              <Text dimColor>shared memory {status.text}</Text>
+            </Text>
+            <Text dimColor>
+              by {BRAND.author} · {BRAND.tagline}
+            </Text>
+          </Box>
+        )}
+        {Svg && (
+          <Text key="status-line" dimColor>
+            Shared memory {status.text}
+          </Text>
+        )}
+
+        <Section title="Accounts">
+          <Box flexDirection="row" flexWrap="wrap" gap={1}>
+            {ACCOUNTS.map(a => {
+              const p = v.profiles[a]
+              const isHere = v.session === a
+              const isLoggingIn = v.login?.account === a && v.login.state === 'running'
+              return (
+                <Box key={`acct-${a}`} flexDirection="column" flexGrow={1} minWidth={28} gap={0}>
+                  <Text>
+                    <Text color={p.isLoggedIn ? 'success' : 'warning'}>{p.isLoggedIn ? '●' : '○'} </Text>
+                    <Text bold>
+                      {LABEL[a]}
+                    </Text>
+                    {isHere && <Text color={BRAND.cyan}> · this session</Text>}
+                  </Text>
+                  <Text dimColor wrap="truncate-end">
+                    {p.isLoggedIn ? [p.email, p.plan].filter(Boolean).join(' · ') : 'Not signed in'}
+                  </Text>
+                  {p.isLoggedIn && (
+                    <Text dimColor>
+                      Last active {ago(p.lastActivity)}
+                    </Text>
+                  )}
+                  {!p.isLoggedIn && (
+                    <Button key={`login-${a}`} variant="primary" onPress={() => void logIn($, a)}>
+                      {isLoggingIn ? 'Signing in…' : `Log in to ${LABEL[a]}`}
+                    </Button>
+                  )}
+                  {p.isLoggedIn && !isHere && (
+                    <Text dimColor>
+                      Open it: run {COMMAND[a]} in a terminal.
+                    </Text>
+                  )}
+                </Box>
+              )
+            })}
+          </Box>
           {v.login && (
-            <Text key="login-msg" color={v.login.state === 'failed' ? 'red' : undefined} dimColor={v.login.state !== 'failed'}>
+            <Text key="login-msg" color={v.login.state === 'failed' ? 'error' : undefined} dimColor={v.login.state !== 'failed'}>
               {v.login.message}
               {v.login.url && v.login.state === 'running' ? ` If no browser opened: ${v.login.url}` : ''}
             </Text>
           )}
-        </Box>
+        </Section>
 
-        <Box flexDirection="column">
-          <Text>
-            <Text bold>Shared memory</Text>
-            <Text dimColor> · {memory}</Text>
-          </Text>
-          {v.error && <Text color="red">{v.error}</Text>}
+        <Section title="Memory" aside={sync?.state === 'done' ? `Synced ${ago(sync.at)}` : undefined}>
+          {v.error && <Text color="error">{v.error}</Text>}
           {v.stats && (
-            <Text key="stats" dimColor>
-              {count(total)} messages ({ACCOUNTS.map(a => `${LABEL[a]} ${count(v.stats!.messages[a])}`).join(', ')}) · {count(v.stats.handoffs)} handoffs
-              {since(v.stats.oldest)}
+            <Box key="stats" flexDirection="row" flexWrap="wrap" gap={1}>
+              <Stat id="stat-messages" value={count(total)} label="messages" />
+              <Stat id="stat-handoffs" value={count(v.stats.handoffs)} label="handoffs" />
+              <Stat id="stat-since" value={since(v.stats.oldest) || '-'} label="history since" />
+            </Box>
+          )}
+          {v.stats && (
+            <Text key="stats-split" dimColor>
+              {ACCOUNTS.map(a => `${LABEL[a]} ${count(v.stats!.messages[a])}`).join(' · ')}
             </Text>
           )}
           {isSyncRunning && (
-            <Box key="sync-progress" flexDirection="column">
-              <Text>
-                <Text color="cyan">{bar(sync.done, sync.total)} </Text>
-                <Text bold>{sync.total ? `${Math.floor((sync.done / sync.total) * 100)}%` : '…'}</Text>
-              </Text>
+            <Box key="sync-progress" flexDirection="column" gap={0}>
+              <Box flexDirection="row" justifyContent="space-between">
+                <Text bold>
+                  {sync.total ? `Syncing ${LABEL[sync.account ?? 'work']} history` : sync.message}
+                </Text>
+                <Text bold color={BRAND.cyan}>
+                  {sync.total ? `${Math.floor(fraction * 100)}%` : '…'}
+                </Text>
+              </Box>
+              {Svg ? (
+                <Svg key="sync-bar" source={progressSvg(fraction)} alt={`${Math.floor(fraction * 100)}% synced`} width={360} height={8} />
+              ) : (
+                <Text key="sync-bar" color={BRAND.cyan}>
+                  {progressText(fraction)}
+                </Text>
+              )}
               <Text dimColor>
-                {sync.total ? `Syncing ${LABEL[sync.account ?? 'work']} history · ${count(sync.done)}/${count(sync.total)} sessions` : sync.message}
-                {` · ${count(sync.added)} new messages`}
+                {sync.total ? `${count(sync.done)}/${count(sync.total)} sessions` : 'Looking for sessions'} · {count(sync.added)} new messages
               </Text>
             </Box>
           )}
           {sync?.state === 'done' && (
             <Text key="sync-done" dimColor>
-              History synced {ago(sync.at)}
-              {sync.added ? ` · ${count(sync.added)} new messages` : ' · up to date'}
+              {sync.added ? `${count(sync.added)} new messages added` : 'Everything is up to date'}
             </Text>
           )}
           {sync?.state === 'failed' && (
-            <Text key="sync-failed" color="red">
+            <Text key="sync-failed" color="error">
               {sync.message}
             </Text>
           )}
+          <Box flexDirection="row" gap={1} flexWrap="wrap">
+            <Button key="sync" onPress={() => void syncHistory($)}>
+              {isSyncRunning ? 'Syncing…' : 'Sync all history'}
+            </Button>
+            <Button key="refresh" onPress={() => void refresh($)}>
+              Refresh
+            </Button>
+          </Box>
+        </Section>
+
+        <Section title="Latest handoff" aside={v.handoff ? `${LABEL[v.handoff.space] ?? v.handoff.space} · ${ago(v.handoff.at)}` : undefined}>
           {v.handoff ? (
-            <Box flexDirection="column">
-              <Text>
+            <Box flexDirection="column" gap={0}>
+              <Text bold>
                 {v.handoff.title}
-                <Text dimColor> · from {LABEL[v.handoff.space] ?? v.handoff.space} · {ago(v.handoff.at)}</Text>
               </Text>
               <Text dimColor>{oneLine(v.handoff.summary, 300)}</Text>
               {(v.handoff.nextSteps ?? []).slice(0, 3).map((s, i) => (
-                <Text key={`step-${i}`} dimColor>
-                  - {oneLine(s, 120)}
+                <Text key={`step-${i}`}>
+                  <Text color={BRAND.cyan}>→ </Text>
+                  {oneLine(s, 120)}
                 </Text>
               ))}
             </Box>
           ) : (
-            <Text dimColor>No handoff saved yet.</Text>
+            <Text dimColor>No handoff saved yet. Save one before you switch accounts.</Text>
           )}
-          <Box flexDirection="row" gap={1}>
+          <Box flexDirection="row" gap={1} flexWrap="wrap">
             <Button key="continue" variant="primary" onPress={() => void $.prompt.submit({ text: CONTINUE_PROMPT })}>
               Continue here
             </Button>
             <Button key="save" onPress={() => void $.prompt.submit({ text: SAVE_PROMPT })}>
               Save handoff
             </Button>
-            <Button key="refresh" onPress={() => void refresh($)}>
-              Refresh
-            </Button>
-            <Button key="sync" onPress={() => void syncHistory($)}>
-              {isSyncRunning ? 'Syncing…' : 'Sync all history'}
-            </Button>
           </Box>
-        </Box>
+        </Section>
 
-        <Box flexDirection="column">
+        <Section title="History" aside={v.query ? `Results for "${oneLine(v.query, 30)}"` : 'Recent'}>
           {Input && (
             <Input
               key="search"
@@ -442,14 +526,14 @@ export const register: Register = (on, options) => {
           )}
           {v.items.length === 0 && v.connector === 'ok' && <Text dimColor>Nothing found.</Text>}
           {v.items.slice(0, 12).map(i => (
-            <Text key={i.id}>
+            <Box key={i.id} flexDirection="column">
               <Text dimColor>
-                {LABEL[i.space] ?? i.space} · {i.kind === 'handoff' ? 'handoff' : i.role === 'user' ? 'you' : 'Claude'} · {ago(i.at)}:{' '}
+                {LABEL[i.space] ?? i.space} · {i.kind === 'handoff' ? 'handoff' : i.role === 'user' ? 'you' : 'Claude'} · {ago(i.at)}
               </Text>
-              {oneLine(i.kind === 'handoff' ? `${i.title}: ${i.summary}` : i.text)}
-            </Text>
+              <Text wrap="truncate-end">{oneLine(i.kind === 'handoff' ? `${i.title}: ${i.summary}` : i.text)}</Text>
+            </Box>
           ))}
-        </Box>
+        </Section>
       </Box>
     )
   })
