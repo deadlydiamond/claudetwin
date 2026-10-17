@@ -1,6 +1,6 @@
 {
   "name": "claudetwin",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "Shared memory and handoffs between two Claude accounts via the ClaudeTwin connector.",
   "author": {
     "name": "Omer",
@@ -26,6 +26,13 @@
       "sensitive": true,
       "type": "string",
       "title": "Account token"
+    },
+    "env_file": {
+      "type": "string",
+      "title": "Connector .env file (optional)",
+      "description": "Used only when connector URL or token is empty: the connector .env that holds the port and both tokens",
+      "default": ""
     }
-  }
+  },
+  "types": "./types/index.d.ts"
 }
