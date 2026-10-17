@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:"
+    />
+    <title>ClaudeTwin</title>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <header id="bar">
+      <nav id="tabs"></nav>
+      <div class="spacer"></div>
+
+      <label class="toggle" title="Limit khatam hote hi doosre account par chale jao">
+        <input type="checkbox" id="autoSwitch" />
+        <span class="track"><span class="knob"></span></span>
+        Auto-switch
+      </label>
+      <label class="toggle" title="Switch ke baad aakhri prompt khud send kar do (warna sirf paste hoga)">
+        <input type="checkbox" id="autoSend" />
+        <span class="track"><span class="knob"></span></span>
+        Auto-send
+      </label>
+
+      <button id="splitBtn" class="icon" title="Split view (Ctrl/⌘ + \)">
+        <svg viewBox="0 0 20 20"><rect x="2.5" y="3.5" width="15" height="13" rx="2" /><line x1="10" y1="3.5" x2="10" y2="16.5" /></svg>
+      </button>
+      <button id="historyBtn" class="icon" title="Central history (Ctrl/⌘ + H)">
+        <svg viewBox="0 0 20 20"><circle cx="10" cy="10" r="7" /><polyline points="10 6 10 10 13 12" /></svg>
+      </button>
+      <button id="reloadBtn" class="icon" title="Reload active account">
+        <svg viewBox="0 0 20 20"><path d="M16 10a6 6 0 1 1-1.8-4.3" /><polyline points="16 3.5 16 7 12.5 7" /></svg>
+      </button>
+    </header>
+
+    <div id="banner" hidden></div>
+    <div id="body">
+      <main id="views"></main>
+      <aside id="history" hidden>
+        <div class="history-head">
+          <input id="historySearch" type="search" placeholder="Dono accounts ki history mein dhoondein…" />
+          <button id="historyClose" class="icon" title="Close">
+            <svg viewBox="0 0 20 20"><line x1="5" y1="5" x2="15" y2="15" /><line x1="15" y1="5" x2="5" y2="15" /></svg>
+          </button>
+        </div>
+        <div id="historyList"></div>
+      </aside>
+    </div>
+    <div id="toast" hidden></div>
+
+    <script src="reset.js"></script>
+    <script src="app.js"></script>
+  </body>
+</html>

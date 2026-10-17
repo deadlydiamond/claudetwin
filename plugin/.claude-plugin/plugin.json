@@ -1,0 +1,31 @@
+{
+  "name": "claudetwin",
+  "version": "1.0.0",
+  "description": "Shared memory and handoffs between two Claude accounts via the ClaudeTwin connector.",
+  "author": {
+    "name": "Omer",
+    "url": "https://github.com/deadlydiamond"
+  },
+  "homepage": "https://github.com/deadlydiamond/claudetwin",
+  "repository": "https://github.com/deadlydiamond/claudetwin",
+  "license": "MIT",
+  "keywords": [
+    "memory",
+    "handoff",
+    "multi-account",
+    "mcp"
+  ],
+  "userConfig": {
+    "connector_url": {
+      "description": "ClaudeTwin connector base URL, e.g. https://claudetwin.example.com (no trailing slash)",
+      "type": "string",
+      "title": "ClaudeTwin connector URL"
+    },
+    "account_token": {
+      "description": "Account token for this machine's Claude account (CLAUDETWIN_WORK_TOKEN or CLAUDETWIN_PERSONAL_TOKEN)",
+      "sensitive": true,
+      "type": "string",
+      "title": "Account token"
+    }
+  }
+}

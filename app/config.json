@@ -1,0 +1,27 @@
+{
+  "accounts": [
+    { "id": "work", "label": "Company", "color": "#4f8cff" },
+    { "id": "personal", "label": "Personal", "color": "#b06cff" }
+  ],
+  "startUrl": "https://claude.ai/new",
+  "carryPrompt": true,
+  "defaultBlockHours": 5,
+  "connector": {
+    "url": "",
+    "tokens": { "work": "", "personal": "" },
+    "logMessages": true
+  },
+  "limitPatterns": [
+    "usage limit",
+    "reached your (message|usage) limit",
+    "out of (free )?messages",
+    "message limit",
+    "limit reached",
+    "out of extra usage"
+  ],
+  "assistantSelectors": [
+    ".font-claude-response",
+    ".font-claude-message",
+    "[data-is-streaming]"
+  ]
+}
