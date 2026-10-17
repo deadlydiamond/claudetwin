@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="ur">
+<head>
+  <meta charset="utf-8">
+  <title>ClaudeTwin</title>
+  <link rel="stylesheet" href="ui/style.css">
+  <style>
+    body { width: 300px; padding: 14px; }
+    .acct {
+      width: 100%;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      text-align: left;
+      padding: 10px 12px;
+      border-radius: var(--radius);
+    }
+    .acct .name { font-weight: 600; }
+    .acct .meta { display: block; font-size: 12px; color: var(--muted); }
+    .acct[aria-pressed="true"] { border-width: 2px; padding: 9px 11px; }
+    .acct.work[aria-pressed="true"] { border-color: var(--work); }
+    .acct.personal[aria-pressed="true"] { border-color: var(--personal); }
+    .acct .now { margin-left: auto; font-size: 11px; color: var(--muted); }
+    footer { margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--line); }
+  </style>
+</head>
+<body>
+  <header class="row spread" style="margin-bottom:12px">
+    <h1>ClaudeTwin</h1>
+    <span class="muted small">Alt+Shift+S</span>
+  </header>
+
+  <!-- First run: which account is logged in right now? -->
+  <section id="setup" class="stack" hidden>
+    <p>claude.ai mein abhi jo account login hai, wo kaunsa hai?</p>
+    <div class="row">
+      <button class="primary" data-set="work" id="set-work">Company</button>
+      <button data-set="personal" id="set-personal">Personal</button>
+    </div>
+    <p class="muted small">Agar abhi koi login nahi, to jis account se pehle login karna hai wo chunein.</p>
+  </section>
+
+  <section id="main" class="stack" hidden>
+    <div id="limit" class="notice" hidden></div>
+    <button class="acct work" data-id="work">
+      <span class="dot work"></span>
+      <span><span class="name" id="label-work">Company</span><span class="meta" id="meta-work"></span></span>
+      <span class="now" id="now-work"></span>
+    </button>
+    <button class="acct personal" data-id="personal">
+      <span class="dot personal"></span>
+      <span><span class="name" id="label-personal">Personal</span><span class="meta" id="meta-personal"></span></span>
+      <span class="now" id="now-personal"></span>
+    </button>
+    <label class="row small"><input type="checkbox" id="carry"> Switch par aakhri prompt saath le jao</label>
+    <p id="msg" class="small" hidden></p>
+  </section>
+
+  <footer class="row spread">
+    <button id="history">History</button>
+    <button class="link" id="settings">Settings</button>
+  </footer>
+  <script type="module" src="ui/popup.js"></script>
+</body>
+</html>

@@ -2,7 +2,8 @@
 
 Do Claude accounts (Company + Personal), aik window, aik central memory.
 
-- **app/**: Electron desktop app. Dono accounts side by side, limit khatam hote hi doosre par auto-switch, aur dono ki history aik panel mein.
+- **extension/**: Chrome extension (recommended). Aapke apne Chrome mein ek click se Company aur Personal ke darmiyan switch, dono ki history ek side panel mein. Login claude.ai par normal tareeqe se hota hai, is liye "Continue with Google" bhi chalta hai.
+- **app/**: Electron desktop app. Dono accounts side by side, limit khatam hote hi doosre par auto-switch, aur dono ki history aik panel mein. Google is app ke andar "Sign in with Google" block karta hai, is liye Google wale accounts ke liye extension use karein.
 - **connector/**: Remote MCP server. Dono accounts isse connect hote hain, is liye handoff, history aur search dono taraf available rehte hain.
 - **plugin/**: Claude Code plugin. Isme connector ki setting aur `claudetwin` skill dono hain. Skill Claude ko batati hai ke handoff kab save karna hai aur switch ke baad context kaise uthana hai.
 
@@ -81,7 +82,31 @@ claude mcp add --transport http --scope user claudetwin https://<host>/mcp/<TOKE
 
 `plugin/skills/claudetwin` folder ko zip karein aur claude.ai → Settings → Capabilities → Skills mein upload karein.
 
-## 4. App chalayein
+## 4. Chrome extension (recommended)
+
+Install (abhi Chrome Web Store par nahi hai):
+
+1. Chrome mein `chrome://extensions` kholein aur upar daayen **Developer mode** on karein.
+2. **Load unpacked** dabayein aur repo ka `extension/` folder chunein.
+3. Toolbar mein ClaudeTwin ko pin kar dein.
+
+Pehli dafa:
+
+1. ClaudeTwin icon par click karein. Wo poochega ke claude.ai mein abhi kaunsa account login hai. Sahi wala chunein.
+2. Doosre account ke button par click karein. claude.ai logged out khulega. Wahan us account se normal login karein, Google bhi chalega.
+3. Bas. Ab icon se, ya **Alt+Shift+S** se, dono ke darmiyan switch karein. Dobara login nahi karna padta.
+
+Connector ke liye icon → **Settings** mein connector URL aur dono tokens daalein, phir **Connection check karein**. Connector ke baghair bhi switch chalta hai. Connector ho to:
+
+- Dono accounts ke prompts aur jawab connector mein save hote hain, aur **History** side panel mein ek jagah search hote hain.
+- Switch karte waqt aakhri prompt doosre account ke composer mein paste ho jata hai. Send aap khud karte hain.
+- Limit ka message dikhe to icon par `!` aata hai aur popup switch ka mashwara deta hai. Switch hamesha aap khud karte hain.
+
+Kaise kaam karta hai: har account ki claude.ai cookies (login) `chrome.storage.local` mein alag rakhi jaati hain, aur switch par cookie jar badal diya jata hai. Ye login sirf aapke computer par, isi Chrome profile mein rehte hain, kahin bheje nahi jaate. Jis kisi ke paas aapke Chrome profile ki files tak rasai ho, wo inhein parh sakta hai, jaise Chrome ki apni cookies.
+
+## 4b. Electron app
+
+Google wale accounts is app mein login nahi kar sakte, kyunke Google app ke andar bani browser windows mein sign-in rokta hai. Email + code se login karne wale accounts ke liye ye chalti hai.
 
 ```bash
 cd app
@@ -133,4 +158,5 @@ Installer banana ho to: `npm run dist` (mac par .dmg, Windows par .exe, Linux pa
 ```bash
 cd connector && npm test   # MCP end-to-end, shared + isolated
 cd app && npm test         # reset-time parser
+cd extension && npm test   # account switching (cookie swap)
 ```

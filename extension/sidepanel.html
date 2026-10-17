@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="ur">
+<head>
+  <meta charset="utf-8">
+  <title>ClaudeTwin history</title>
+  <link rel="stylesheet" href="ui/style.css">
+  <style>
+    body { padding: 12px; }
+    #list { list-style: none; margin: 0; padding: 0; }
+    #list li { padding: 10px 0; border-bottom: 1px solid var(--line); }
+    .head { font-size: 12px; color: var(--muted); }
+    .title { font-weight: 600; margin: 2px 0; }
+    .body {
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+      display: -webkit-box;
+      -webkit-line-clamp: 4;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+    li.open .body { -webkit-line-clamp: unset; }
+    .actions { margin-top: 6px; gap: 6px; flex-wrap: wrap; }
+    .actions button { padding: 3px 8px; font-size: 12px; }
+    #handoff .body { -webkit-line-clamp: 6; }
+  </style>
+</head>
+<body class="stack">
+  <header class="row spread">
+    <h1>History</h1>
+    <button id="refresh">Refresh</button>
+  </header>
+  <input type="search" id="q" placeholder="Dono accounts mein search karein">
+  <div id="state" class="muted small"></div>
+  <section id="handoff" class="card" hidden></section>
+  <ul id="list"></ul>
+  <script type="module" src="ui/sidepanel.js"></script>
+</body>
+</html>
