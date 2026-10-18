@@ -125,7 +125,7 @@ test('Sync all history imports both profiles and shows progress', { options: OPT
       : { value: login('me@company.com', 'claude_team') },
   )
   on('fs.exists', async (_$, e) => ({
-    value: e.path === '/opt/homebrew/bin/node' || e.path.includes('/1.4.0/scripts/sync-history.mjs') || e.path.endsWith('/projects'),
+    value: e.path === '/opt/homebrew/bin/node' || e.path.includes('/1.4.1/scripts/sync-history.mjs') || e.path.endsWith('/projects'),
   }))
   on('http.fetch', async (_$, e) => {
     const body = e.url.endsWith('/api/whoami')
