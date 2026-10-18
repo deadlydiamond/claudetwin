@@ -15,7 +15,7 @@ const LABEL: Record<string, string> = { work: 'Company', personal: 'Personal', s
 const PROFILE_DIR: Record<TwinAccount, string | undefined> = { work: undefined, personal: '.claude-personal' }
 const COMMAND: Record<TwinAccount, string> = { work: 'claude-work', personal: 'claude-personal' }
 // Must match .claude-plugin/plugin.json: the installed copy of the sync script lives under it.
-const VERSION = '1.4.0'
+const VERSION = '1.4.1'
 const REPO_SCRIPT = '~/Projects/claudetwin/plugin/scripts/sync-history.mjs'
 
 const CONTINUE_PROMPT =
