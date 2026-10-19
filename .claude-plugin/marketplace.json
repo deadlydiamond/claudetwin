@@ -5,14 +5,14 @@
     "url": "https://github.com/deadlydiamond"
   },
   "metadata": {
-    "description": "ClaudeTwin by Omer Bin Saleem: one memory for your two Claude accounts.",
+    "description": "ClaudeTwin by Omer Bin Saleem: one memory for all your Claude accounts.",
     "version": "1.6.0"
   },
   "plugins": [
     {
       "name": "claudetwin",
       "source": "./plugin",
-      "description": "One memory for your two Claude accounts. Handoffs, full history search across both, and a /twin panel that shows both sign-ins and syncs your past sessions.",
+      "description": "One memory for all your Claude accounts. Switch with /logout and /login and carry on mid-task, with handoffs and full history search. Your login untouched, your data on your machine, free.",
       "version": "1.6.0",
       "author": { "name": "Omer Bin Saleem", "url": "https://github.com/deadlydiamond" },
       "homepage": "https://github.com/deadlydiamond/claudetwin",
