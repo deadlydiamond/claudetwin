@@ -6,7 +6,7 @@ import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register } from 'claude-code'
 
 import { BRAND, headerSvg, progressSvg, progressText } from './brand'
-import type { TwinAccount, TwinItem, TwinProfile, TwinStats, TwinSync, TwinView } from '../types'
+import type { TwinAccount, TwinItem, TwinProfile, TwinStats, TwinSwitch, TwinSync, TwinView } from '../types'
 
 const PANE = 'claudetwin'
 const ACCOUNTS: TwinAccount[] = ['work', 'personal']
@@ -15,7 +15,7 @@ const LABEL: Record<string, string> = { work: 'Company', personal: 'Personal', s
 const PROFILE_DIR: Record<TwinAccount, string | undefined> = { work: undefined, personal: '.claude-personal' }
 const COMMAND: Record<TwinAccount, string> = { work: 'claude-work', personal: 'claude-personal' }
 // Must match .claude-plugin/plugin.json: the installed copy of the sync script lives under it.
-const VERSION = '1.4.1'
+const VERSION = '1.5.0'
 const REPO_SCRIPT = '~/Projects/claudetwin/plugin/scripts/sync-history.mjs'
 
 const CONTINUE_PROMPT =
@@ -210,14 +210,54 @@ async function nodeBinary($: EngineInterface): Promise<string | undefined> {
   return undefined
 }
 
-// The installed copy of the sync script for this profile, else the repository's.
-async function syncScript($: EngineInterface): Promise<string | undefined> {
+// The installed copy of one of the plugin's scripts for this profile, else the repository's.
+async function scriptFor($: EngineInterface, name: string): Promise<string | undefined> {
   const configDir = (await $.env.get('CLAUDE_CONFIG_DIR')) || `${await home($)}/.claude`
-  for (const p of [`${configDir}/plugins/cache/claudetwin/claudetwin/${VERSION}/scripts/sync-history.mjs`, await expand($, REPO_SCRIPT)]) {
+  for (const p of [`${configDir}/plugins/cache/claudetwin/claudetwin/${VERSION}/scripts/${name}`, await expand($, REPO_SCRIPT.replace('sync-history.mjs', name))]) {
     if (await $.fs.exists(p)) return p
   }
   return undefined
 }
+const syncScript = ($: EngineInterface) => scriptFor($, 'sync-history.mjs')
+
+// A switch is safe when the last sync finished a short while ago; otherwise the person is asked first.
+const FRESH_MS = 10 * 60_000
+const isFresh = (v: TwinView) => v.sync?.state === 'done' && !!v.sync.at && Date.now() - Date.parse(v.sync.at) < FRESH_MS
+
+const setSwitching = ($: EngineInterface, switching?: TwinSwitch) => update($, view, (v): TwinView => ({ ...v, switching }))
+
+// Opens the other account's Claude Code in a new Terminal window (its own profile, so no logout is needed).
+async function openAccount($: EngineInterface, account: TwinAccount) {
+  await setSwitching($, { account, state: 'opening', message: `Opening ${LABEL[account]} in a new Terminal window…` })
+  try {
+    const run = $.process.spawn({
+      argv: ['/usr/bin/osascript', '-e', `tell application "Terminal" to do script "${COMMAND[account]}"`, '-e', 'tell application "Terminal" to activate'],
+    })
+    for await (const _ of run) {
+      /* nothing to read */
+    }
+    const { code } = await run.result
+    if (code !== 0) throw new Error(`exit ${code}`)
+    await setSwitching($, undefined)
+  } catch {
+    await setSwitching($, { account, state: 'failed', message: `Could not open a window here. Run ${COMMAND[account]} in a terminal.` })
+  }
+}
+
+// The Switch button: straight to the other account when memory is synced, else ask first.
+async function switchTo($: EngineInterface, account: TwinAccount) {
+  if (isFresh(await read($, view))) return openAccount($, account)
+  await setSwitching($, { account, state: 'unsynced' })
+}
+
+// "Sync now": brings the shared memory up to date, then opens the account.
+async function syncThenSwitch($: EngineInterface, account: TwinAccount) {
+  await setSwitching($, { account, state: 'opening', message: 'Syncing the shared memory first…' })
+  await syncHistory($)
+  if ((await read($, view)).sync?.state === 'done') return openAccount($, account)
+  await setSwitching($, { account, state: 'failed', message: 'The sync did not finish, so the account was not opened. Fix the sync or switch anyway.' })
+}
+
 
 const setSync = ($: EngineInterface, fn: (s: TwinSync) => TwinSync) =>
   update($, view, (v): TwinView => ({ ...v, sync: fn(v.sync ?? { state: 'running', done: 0, total: 0, added: 0 }) }))
@@ -332,10 +372,12 @@ export const register: Register = (on, options) => {
             ? { label: 'Offline', tone: 'off' as const, text: 'not reachable' }
             : { label: 'Not set up', tone: 'off' as const, text: 'not set up' }
     const toneColor = status.tone === 'ok' ? 'success' : status.tone === 'busy' ? BRAND.cyan : 'warning'
+    const sameAccount =
+      !!v.profiles.work.email && v.profiles.work.email.toLowerCase() === v.profiles.personal.email?.toLowerCase()
     const total = Object.values(v.stats?.messages ?? {}).reduce((a: number, b) => a + (b ?? 0), 0)
 
     const Section = ({ title, aside, children }: { title: string; aside?: string; children?: JSX.Children }) => (
-      <Box flexDirection="column" gap={1} borderStyle="round" borderColor="subtle" paddingX={1} paddingY={0}>
+      <Box flexDirection="column" gap={1} borderStyle="round" borderColor="subtle" paddingX={2} paddingY={1}>
         <Box flexDirection="row" justifyContent="space-between">
           <Text bold dimColor>
             {title.toUpperCase()}
@@ -362,7 +404,7 @@ export const register: Register = (on, options) => {
     )
 
     return (
-      <Box flexDirection="column" gap={1} paddingY={0}>
+      <Box flexDirection="column" gap={1} paddingX={1} paddingY={1}>
         {Svg ? (
           <Svg key="brand" source={headerSvg(status)} alt={`ClaudeTwin by ${BRAND.author}. Shared memory ${status.text}.`} width={360} height={56} />
         ) : (
@@ -392,7 +434,7 @@ export const register: Register = (on, options) => {
               const isHere = v.session === a
               const isLoggingIn = v.login?.account === a && v.login.state === 'running'
               return (
-                <Box key={`acct-${a}`} flexDirection="column" flexGrow={1} minWidth={28} gap={0}>
+                <Box key={`acct-${a}`} flexDirection="column" flexGrow={1} minWidth={28} gap={1} borderStyle="round" borderColor="subtle" paddingX={2} paddingY={1}>
                   <Text>
                     <Text color={p.isLoggedIn ? 'success' : 'warning'}>{p.isLoggedIn ? '●' : '○'} </Text>
                     <Text bold>
@@ -414,14 +456,50 @@ export const register: Register = (on, options) => {
                     </Button>
                   )}
                   {p.isLoggedIn && !isHere && (
-                    <Text dimColor>
-                      Open it: run {COMMAND[a]} in a terminal.
-                    </Text>
+                    <Button key={`switch-${a}`} variant="primary" onPress={() => void switchTo($, a)}>
+                      {`Switch to ${LABEL[a]}`}
+                    </Button>
                   )}
                 </Box>
               )
             })}
           </Box>
+          {!(v.profiles.work.isLoggedIn && v.profiles.personal.isLoggedIn) && (
+            <Text key="onboarding" dimColor>
+              Set up both accounts once: sign in to each below. After that, switch between them from here, with no logging out.
+            </Text>
+          )}
+          {v.switching?.state === 'unsynced' && (
+            <Box key="switch-alert" flexDirection="column" gap={1} borderStyle="round" borderColor="warning" paddingX={2} paddingY={1}>
+              <Text color="warning" bold>
+                The shared memory is not synced
+              </Text>
+              <Text>
+                {LABEL[v.switching.account]} will not see what you did here until it is. Sync first, then switch.
+              </Text>
+              <Box flexDirection="row" gap={1} flexWrap="wrap">
+                <Button key="sync-switch" variant="primary" onPress={() => void syncThenSwitch($, v.switching!.account)}>
+                  Sync now and switch
+                </Button>
+                <Button key="switch-anyway" onPress={() => void openAccount($, v.switching!.account)}>
+                  Switch anyway
+                </Button>
+                <Button key="switch-cancel" onPress={() => void setSwitching($, undefined)}>
+                  Cancel
+                </Button>
+              </Box>
+            </Box>
+          )}
+          {v.switching && v.switching.state !== 'unsynced' && (
+            <Text key="switch-msg" color={v.switching.state === 'failed' ? 'error' : undefined} dimColor={v.switching.state !== 'failed'}>
+              {v.switching.message}
+            </Text>
+          )}
+          {sameAccount && (
+            <Text key="same-account" color="warning">
+              Both profiles are signed in to {v.profiles.work.email}. Use "Log in" on the Personal profile for your second account, instead of logging out here.
+            </Text>
+          )}
           {v.login && (
             <Text key="login-msg" color={v.login.state === 'failed' ? 'error' : undefined} dimColor={v.login.state !== 'failed'}>
               {v.login.message}
