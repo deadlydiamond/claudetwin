@@ -15,7 +15,7 @@ const LABEL: Record<string, string> = { work: 'Company', personal: 'Personal', s
 const PROFILE_DIR: Record<TwinAccount, string | undefined> = { work: undefined, personal: '.claude-personal' }
 const COMMAND: Record<TwinAccount, string> = { work: 'claude-work', personal: 'claude-personal' }
 // Must match .claude-plugin/plugin.json: the installed copy of the sync script lives under it.
-const VERSION = '1.5.2'
+const VERSION = '1.5.3'
 const REPO_SCRIPT = '~/Projects/claudetwin/plugin/scripts/sync-history.mjs'
 
 const CONTINUE_PROMPT =
@@ -266,7 +266,7 @@ async function openAccount($: EngineInterface, account: TwinAccount) {
 
 async function copyCommand($: EngineInterface, command: string) {
   try {
-    const run = $.process.spawn({ argv: ['sh', '-c', `echo -n '${command}' | pbcopy`] })
+    const run = $.process.spawn({ argv: ['sh', '-c', `printf '%s' '${command}' | pbcopy`] })
     for await (const _ of run) { /* nothing to read */ }
   } catch { /* clipboard not available; user can copy manually */ }
 }
@@ -541,12 +541,18 @@ export const register: Register = (on, options) => {
           )}
           {v.switching?.state === 'ready' && (
             <Box key="switch-ready" flexDirection="column" gap={1} borderStyle="round" borderColor="green" paddingX={2} paddingY={1}>
-              <Text bold>Run this in your terminal</Text>
-              <Text color="green">{v.switching.command}</Text>
-              <Text dimColor>Works in any editor: Cursor, VS Code, Terminal, or iTerm.</Text>
+              <Text bold>How to switch to {LABEL[v.switching.account]}</Text>
+              <Text bold>Option 1 — New terminal session (any editor):</Text>
+              <Text>  1. Open a new terminal window or tab</Text>
+              <Text>  2. Run: <Text color="green">{v.switching.command}</Text></Text>
+              <Text bold>Option 2 — New Cursor / VS Code window:</Text>
+              <Text>  1. Open a new terminal</Text>
+              <Text>  2. Run: <Text color="green">CLAUDE_CONFIG_DIR=~/.claude-personal cursor</Text></Text>
+              <Text>  3. Your Personal account will be active in that window</Text>
+              <Text dimColor>Note: switching does not affect an already-open editor window.</Text>
               <Box flexDirection="row" gap={1}>
                 <Button key="copy-cmd" variant="primary" onPress={() => void copyCommand($, v.switching!.command!)}>
-                  Copy
+                  Copy Option 1
                 </Button>
                 <Button key="switch-done" onPress={() => void setSwitching($, undefined)}>
                   Done
