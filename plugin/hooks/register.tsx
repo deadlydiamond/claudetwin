@@ -6,16 +6,15 @@ import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register } from 'claude-code'
 
 import { BRAND, headerSvg, progressSvg, progressText } from './brand'
-import type { TwinAccount, TwinItem, TwinProfile, TwinStats, TwinSwitch, TwinSync, TwinView } from '../types'
+import type { TwinAccount, TwinItem, TwinProfile, TwinStats, TwinSync, TwinView } from '../types'
 
 const PANE = 'claudetwin'
 const ACCOUNTS: TwinAccount[] = ['work', 'personal']
 const LABEL: Record<string, string> = { work: 'Company', personal: 'Personal', shared: 'Shared' }
 // Each account's Claude Code profile: claude-work is the default config, claude-personal its own.
 const PROFILE_DIR: Record<TwinAccount, string | undefined> = { work: undefined, personal: '.claude-personal' }
-const COMMAND: Record<TwinAccount, string> = { work: 'claude-work', personal: 'claude-personal' }
 // Must match .claude-plugin/plugin.json: the installed copy of the sync script lives under it.
-const VERSION = '1.5.4'
+const VERSION = '1.6.0'
 const REPO_SCRIPT = '~/Projects/claudetwin/plugin/scripts/sync-history.mjs'
 
 const CONTINUE_PROMPT =
@@ -24,7 +23,7 @@ const SAVE_PROMPT =
   'Save a ClaudeTwin handoff now with claudetwin save_handoff: what was asked, what is done, key decisions, and concrete next steps, written for someone with no access to this chat.'
 
 const view = atom({ plugin: 'claudetwin', key: 'view' } as const, {
-  profiles: { work: { isLoggedIn: false }, personal: { isLoggedIn: false } },
+  account: { isLoggedIn: false },
   connector: 'loading',
   items: [],
   query: '',
@@ -56,10 +55,10 @@ async function home($: EngineInterface): Promise<string> {
   return (await $.env.get('HOME')) || ''
 }
 
-// Sign-in status from each profile's own config file (the email and plan its login recorded).
-async function readProfile($: EngineInterface, account: TwinAccount): Promise<TwinProfile> {
-  const dir = PROFILE_DIR[account]
-  const file = dir ? `${await home($)}/${dir}/.claude.json` : `${await home($)}/.claude.json`
+// The Claude account this session is signed in to, from its config file.
+async function readAccount($: EngineInterface): Promise<TwinProfile> {
+  const dir = await $.env.get('CLAUDE_CONFIG_DIR')
+  const file = dir ? `${dir}/.claude.json` : `${await home($)}/.claude.json`
   try {
     const config = JSON.parse(String(await $.fs.read(file)))
     const oauth = config?.oauthAccount
@@ -112,27 +111,23 @@ async function api($: EngineInterface, c: Conn, path: string) {
 
 async function refresh($: EngineInterface, query?: string) {
   const q = query ?? (await read($, view)).query
-  const [work, personal] = await Promise.all(ACCOUNTS.map(a => readProfile($, a)))
-  const profiles = { work, personal }
+  const account = await readAccount($)
   const c = await connection($)
   if ('problem' in c) {
-    await update($, view, (v): TwinView => ({ ...v, profiles, connector: 'not-set-up', error: c.problem, query: q }))
+    await update($, view, (v): TwinView => ({ ...v, account, connector: 'not-set-up', error: c.problem, query: q }))
     return
   }
   try {
-    const [who, { handoff }, { items: recent }, stats] = await Promise.all([
-      api($, c, '/api/whoami'),
+    const [{ handoff }, { items: recent }, stats] = await Promise.all([
       api($, c, '/api/handoff'),
       api($, c, '/api/history?limit=200'),
       // Older connectors have no stats; the panel then just leaves the count out.
       api($, c, '/api/stats').catch(() => undefined) as Promise<TwinStats | undefined>,
     ])
     const found: TwinItem[] = q ? (await api($, c, `/api/history?limit=30&q=${encodeURIComponent(q)}`)).items : recent
-    for (const a of ACCOUNTS) profiles[a].lastActivity = (recent as TwinItem[]).find(i => i.space === a)?.at
     await update($, view, (v): TwinView => ({
       ...v,
-      session: who.space === 'personal' ? 'personal' : 'work',
-      profiles,
+      account,
       connector: 'ok',
       error: undefined,
       handoff: handoff ?? undefined,
@@ -143,90 +138,12 @@ async function refresh($: EngineInterface, query?: string) {
   } catch (err) {
     await update($, view, (v): TwinView => ({
       ...v,
-      profiles,
+      account,
       connector: 'down',
       error: `Memory not reachable at ${c.base} (${(err as Error).message}).`,
       query: q,
     }))
   }
-}
-
-// Where the claude command lives; the desktop app's PATH may not include it.
-async function claudeBinary($: EngineInterface): Promise<string> {
-  const h = await home($)
-  for (const p of ['/opt/homebrew/bin/claude', '/usr/local/bin/claude', `${h}/.local/bin/claude`, `${h}/.claude/local/claude`]) {
-    try {
-      if ((await $.fs.stat(p)).kind !== 'dir') return p
-    } catch {
-      /* not here */
-    }
-  }
-  return 'claude'
-}
-
-// Runs `claude auth login` for that account's profile; the browser opens for the sign-in.
-async function logIn($: EngineInterface, account: TwinAccount) {
-  const dir = PROFILE_DIR[account]
-  const bin = await claudeBinary($)
-  const argv = dir
-    ? ['/usr/bin/env', `CLAUDE_CONFIG_DIR=${await home($)}/${dir}`, bin, 'auth', 'login']
-    : ['/usr/bin/env', '-u', 'CLAUDE_CONFIG_DIR', bin, 'auth', 'login']
-  const manual = `Run ${COMMAND[account]} in a terminal and type /login.`
-  await update($, view, (v): TwinView => ({
-    ...v,
-    login: { account, state: 'running', message: `Opening the browser to sign in to ${LABEL[account]}…` },
-  }))
-  try {
-    const run = $.process.spawn({ argv })
-    for await (const { text } of run) {
-      const url = text.match(/https:\/\/\S+/)?.[0]
-      if (url) await update($, view, (v): TwinView => ({ ...v, login: { ...v.login!, url } }))
-    }
-    const { code } = await run.result
-    await update($, view, (v): TwinView => ({
-      ...v,
-      login:
-        code === 0
-          ? { account, state: 'done', message: `${LABEL[account]} signed in.` }
-          : { account, state: 'failed', message: `Sign-in did not finish. ${manual}` },
-    }))
-  } catch {
-    await update($, view, (v): TwinView => ({ ...v, login: { account, state: 'failed', message: `Could not start sign-in here. ${manual}` } }))
-  }
-  await refresh($)
-}
-
-const askLogout = ($: EngineInterface, account?: TwinAccount) => update($, view, (v): TwinView => ({ ...v, confirmLogout: account }))
-
-// Runs `claude auth logout` for that account's profile (only after the person confirms in the panel).
-async function logOut($: EngineInterface, account: TwinAccount) {
-  const dir = PROFILE_DIR[account]
-  const bin = await claudeBinary($)
-  const argv = dir
-    ? ['/usr/bin/env', `CLAUDE_CONFIG_DIR=${await home($)}/${dir}`, bin, 'auth', 'logout']
-    : ['/usr/bin/env', '-u', 'CLAUDE_CONFIG_DIR', bin, 'auth', 'logout']
-  await update($, view, (v): TwinView => ({
-    ...v,
-    confirmLogout: undefined,
-    login: { account, state: 'running', message: `Logging out of ${LABEL[account]}…` },
-  }))
-  try {
-    const run = $.process.spawn({ argv })
-    for await (const _ of run) {
-      /* nothing to read */
-    }
-    const { code } = await run.result
-    await update($, view, (v): TwinView => ({
-      ...v,
-      login:
-        code === 0
-          ? { account, state: 'done', message: `${LABEL[account]} logged out. Use Log in to sign in to another account.` }
-          : { account, state: 'failed', message: `Log out did not finish. Run ${COMMAND[account]} in a terminal and type /logout.` },
-    }))
-  } catch {
-    await update($, view, (v): TwinView => ({ ...v, login: { account, state: 'failed', message: `Could not log out here. Run ${COMMAND[account]} in a terminal and type /logout.` } }))
-  }
-  await refresh($)
 }
 
 // A node the host can start; the desktop app's PATH may not include nvm's.
@@ -253,38 +170,7 @@ async function scriptFor($: EngineInterface, name: string): Promise<string | und
 }
 const syncScript = ($: EngineInterface) => scriptFor($, 'sync-history.mjs')
 
-// A switch is safe when the last sync finished a short while ago; otherwise the person is asked first.
-const FRESH_MS = 10 * 60_000
-const isFresh = (v: TwinView) => v.sync?.state === 'done' && !!v.sync.at && Date.now() - Date.parse(v.sync.at) < FRESH_MS
-
-const setSwitching = ($: EngineInterface, switching?: TwinSwitch) => update($, view, (v): TwinView => ({ ...v, switching }))
-
-// Shows the command to open the other account's Claude Code — works in any editor or terminal.
-async function openAccount($: EngineInterface, account: TwinAccount) {
-  await setSwitching($, { account, state: 'ready', command: COMMAND[account] })
-}
-
-async function copyCommand($: EngineInterface, command: string) {
-  try {
-    const run = $.process.spawn({ argv: ['sh', '-c', `printf '%s' '${command}' | pbcopy`] })
-    for await (const _ of run) { /* nothing to read */ }
-  } catch { /* clipboard not available; user can copy manually */ }
-}
-
-// The Switch button: straight to the other account when memory is synced, else ask first.
-async function switchTo($: EngineInterface, account: TwinAccount) {
-  if (isFresh(await read($, view))) return openAccount($, account)
-  await setSwitching($, { account, state: 'unsynced' })
-}
-
-// "Sync now": brings the shared memory up to date, then opens the account.
-async function syncThenSwitch($: EngineInterface, account: TwinAccount) {
-  await setSwitching($, { account, state: 'opening', message: 'Syncing the shared memory first…' })
-  await syncHistory($)
-  if ((await read($, view)).sync?.state === 'done') return openAccount($, account)
-  await setSwitching($, { account, state: 'failed', message: 'The sync did not finish, so the account was not opened. Fix the sync or switch anyway.' })
-}
-
+const showSteps = ($: EngineInterface, show: boolean) => update($, view, (v): TwinView => ({ ...v, showSwitchSteps: show }))
 
 const setSync = ($: EngineInterface, fn: (s: TwinSync) => TwinSync) =>
   update($, view, (v): TwinView => ({ ...v, sync: fn(v.sync ?? { state: 'running', done: 0, total: 0, added: 0 }) }))
@@ -365,7 +251,7 @@ export const register: Register = (on, options) => {
   settings = options
 
   on('session.start', async ($, e, next) => {
-    await $.command.register({ name: 'twin', description: 'Open the ClaudeTwin panel: both accounts, shared memory, handoffs' })
+    await $.command.register({ name: 'twin', description: 'Open the ClaudeTwin panel: your account, how to switch, shared memory, handoffs' })
     void refresh($).then(() => syncHistory($))
     $.clock.every(30_000, () => refresh($))
     return next(e)
@@ -399,8 +285,6 @@ export const register: Register = (on, options) => {
             ? { label: 'Offline', tone: 'off' as const, text: 'not reachable' }
             : { label: 'Not set up', tone: 'off' as const, text: 'not set up' }
     const toneColor = status.tone === 'ok' ? 'success' : status.tone === 'busy' ? BRAND.cyan : 'warning'
-    const sameAccount =
-      !!v.profiles.work.email && v.profiles.work.email.toLowerCase() === v.profiles.personal.email?.toLowerCase()
     const total = Object.values(v.stats?.messages ?? {}).reduce((a: number, b) => a + (b ?? 0), 0)
 
     const Section = ({ title, aside, children }: { title: string; aside?: string; children?: JSX.Children }) => (
@@ -454,105 +338,36 @@ export const register: Register = (on, options) => {
           </Text>
         )}
 
-        <Section title="Accounts">
-          <Box flexDirection="row" flexWrap="wrap" gap={1}>
-            {ACCOUNTS.map(a => {
-              const p = v.profiles[a]
-              const isHere = v.session === a
-              const isLoggingIn = v.login?.account === a && v.login.state === 'running'
-              return (
-                <Box key={`acct-${a}`} flexDirection="column" flexGrow={1} minWidth={28} gap={1} borderStyle="round" borderColor="subtle" paddingX={2} paddingY={1}>
-                  <Text>
-                    <Text color={p.isLoggedIn ? 'success' : 'warning'}>{p.isLoggedIn ? '●' : '○'} </Text>
-                    <Text bold>
-                      {LABEL[a]}
-                    </Text>
-                    {isHere && <Text color={BRAND.cyan}> · this session</Text>}
-                  </Text>
-                  <Text dimColor wrap="truncate-end">
-                    {p.isLoggedIn ? [p.email, p.plan].filter(Boolean).join(' · ') : 'Not signed in'}
-                  </Text>
-                  {p.isLoggedIn && (
-                    <Text dimColor>
-                      Last active {ago(p.lastActivity)}
-                    </Text>
-                  )}
-                  {!p.isLoggedIn && (
-                    <Button key={`login-${a}`} variant="primary" onPress={() => void logIn($, a)}>
-                      {isLoggingIn ? 'Signing in…' : `Log in to ${LABEL[a]}`}
-                    </Button>
-                  )}
-                  {p.isLoggedIn && !isHere && (
-                    <Button key={`switch-${a}`} variant="primary" onPress={() => void switchTo($, a)}>
-                      {`Switch to ${LABEL[a]}`}
-                    </Button>
-                  )}
-                </Box>
-              )
-            })}
-          </Box>
-          {!(v.profiles.work.isLoggedIn && v.profiles.personal.isLoggedIn) && (
-            <Text key="onboarding" dimColor>
-              Set up both accounts once: sign in to each below. After that, switch between them from here, with no logging out.
-            </Text>
-          )}
-          {v.switching?.state === 'unsynced' && (
-            <Box key="switch-alert" flexDirection="column" gap={1} borderStyle="round" borderColor="warning" paddingX={2} paddingY={1}>
-              <Text color="warning" bold>
-                The shared memory is not synced
-              </Text>
+        <Section title="Account">
+          <Text key="acct-line">
+            <Text color={v.account.isLoggedIn ? 'success' : 'warning'}>{v.account.isLoggedIn ? '●' : '○'} </Text>
+            {v.account.isLoggedIn ? (
               <Text>
-                {LABEL[v.switching.account]} will not see what you did here until it is. Sync first, then switch.
+                Signed in as <Text bold>{v.account.email}</Text>
+                {v.account.plan ? <Text dimColor> · {v.account.plan}</Text> : null}
               </Text>
-              <Box flexDirection="row" gap={1} flexWrap="wrap">
-                <Button key="sync-switch" variant="primary" onPress={() => void syncThenSwitch($, v.switching!.account)}>
-                  Sync now and switch
-                </Button>
-                <Button key="switch-anyway" onPress={() => void openAccount($, v.switching!.account)}>
-                  Switch anyway
-                </Button>
-                <Button key="switch-cancel" onPress={() => void setSwitching($, undefined)}>
-                  Cancel
-                </Button>
-              </Box>
+            ) : (
+              <Text>Not signed in. Type /login in this chat.</Text>
+            )}
+          </Text>
+          {!v.showSwitchSteps && (
+            <Button key="switch-account" variant="primary" onPress={() => void showSteps($, true)}>
+              Switch account
+            </Button>
+          )}
+          {v.showSwitchSteps && (
+            <Box key="switch-steps" flexDirection="column" gap={1} borderStyle="round" borderColor="success" paddingX={2} paddingY={1}>
+              <Text bold>How to switch to another Claude account</Text>
+              <Text>Step 1. Type /logout in this chat.</Text>
+              <Text>Step 2. Type /login and sign in with the other account.</Text>
+              <Text>Step 3. Type continue. Claude loads your shared memory and picks up where you stopped.</Text>
+              <Text dimColor>
+                Nothing to copy or sync: every message is saved to the shared memory as you go. Works the same in the terminal, Cursor, VS Code and the desktop app, with as many accounts as you like.
+              </Text>
+              <Button key="switch-close" onPress={() => void showSteps($, false)}>
+                Got it
+              </Button>
             </Box>
-          )}
-          {v.switching?.state === 'ready' && (
-            <Box key="switch-ready" flexDirection="column" gap={1} borderStyle="round" borderColor="green" paddingX={2} paddingY={1}>
-              <Text bold>How to switch to {LABEL[v.switching.account]}</Text>
-              <Text bold>Option 1 — New terminal session (any editor):</Text>
-              <Text>  1. Open a new terminal window or tab</Text>
-              <Text>  2. Run: <Text color="green">{v.switching.command}</Text></Text>
-              <Text bold>Option 2 — New Cursor / VS Code window:</Text>
-              <Text>  1. Open a new terminal</Text>
-              <Text>  2. Run: <Text color="green">CLAUDE_CONFIG_DIR=~/.claude-personal cursor</Text></Text>
-              <Text>  3. Your Personal account will be active in that window</Text>
-              <Text dimColor>Note: switching does not affect an already-open editor window.</Text>
-              <Box flexDirection="row" gap={1}>
-                <Button key="copy-cmd" variant="primary" onPress={() => void copyCommand($, v.switching!.command!)}>
-                  Copy Option 1
-                </Button>
-                <Button key="switch-done" onPress={() => void setSwitching($, undefined)}>
-                  Done
-                </Button>
-              </Box>
-            </Box>
-          )}
-          {v.switching?.state === 'failed' && (
-            <Text key="switch-msg" color="error">
-              {v.switching.message}
-            </Text>
-          )}
-          {sameAccount && (
-            <Text key="same-account" color="warning">
-              Both profiles are signed in to {v.profiles.work.email}. To fix: run `claude auth logout` in a terminal, then use Log in below to sign in with your second account.
-            </Text>
-          )}
-          {v.login && (
-            <Text key="login-msg" color={v.login.state === 'failed' ? 'error' : undefined} dimColor={v.login.state !== 'failed'}>
-              {v.login.message}
-              {v.login.url && v.login.state === 'running' ? ` If no browser opened: ${v.login.url}` : ''}
-            </Text>
           )}
         </Section>
 

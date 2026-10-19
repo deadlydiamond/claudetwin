@@ -24,23 +24,13 @@ const TWIN = { command: 'twin', args: '', origin: { kind: 'composer' }, presenta
 const login = (email: string, type: string) => JSON.stringify({ oauthAccount: { emailAddress: email, organizationType: type } })
 
 for (const surface of ['terminal', 'desktop'] as const) {
-  test(`${surface}: both accounts, shared memory and history`, { options: OPTIONS }, async ($, on) => {
+  test(`${surface}: the signed-in account, shared memory and history`, { options: OPTIONS }, async ($, on) => {
     const auth: string[] = []
     on('env.get', async (_$, e) => ({ value: e.name === 'HOME' ? HOME : undefined }))
-    on('fs.read', async (_$, e) =>
-      e.path === `${HOME}/.claude.json`
-        ? { value: login('me@company.com', 'claude_team') }
-        : e.path === `${HOME}/.claude-personal/.claude.json`
-          ? { value: login('me@gmail.com', 'claude_max') }
-          : { deny: 'no such file' },
-    )
+    on('fs.read', async (_$, e) => (e.path === `${HOME}/.claude.json` ? { value: login('me@company.com', 'claude_team') } : { deny: 'no such file' }))
     on('http.fetch', async (_$, e) => {
       auth.push(e.init?.headers?.authorization ?? '')
-      const body = e.url.endsWith('/api/whoami')
-        ? { space: 'work', mode: 'shared' }
-        : e.url.includes('/api/handoff')
-          ? { handoff: HANDOFF }
-          : { items: [HANDOFF, MESSAGE] }
+      const body = e.url.includes('/api/handoff') ? { handoff: HANDOFF } : { items: [HANDOFF, MESSAGE] }
       return { value: { status: 200, ok: true, headers: {}, text: JSON.stringify(body) } }
     })
     on('ui.open', async () => ({ value: { isPlaced: true } }))
@@ -50,69 +40,23 @@ for (const surface of ['terminal', 'desktop'] as const) {
     const texts = (await ui.findAll({ type: 'Text' })).map(t => t.text).join('\n')
 
     expect(auth.every(a => a === `Bearer ${OPTIONS.account_token}`)).toBe(true)
-    expect(texts).toContain('me@company.com · team')
-    expect(texts).toContain('me@gmail.com · max')
-    expect(texts).toContain('this session')
-    expect(await ui.find({ key: 'switch-personal' })).toBeTruthy()
-    expect(await ui.find({ key: 'switch-work' })).toBeFalsy()
+    expect(texts).toContain('me@company.com')
+    expect(texts).toContain('team')
+    expect(await ui.find({ key: 'switch-account' })).toBeTruthy()
     expect(texts).toContain('synced')
     expect(texts).toContain('Billing refactor')
     expect(texts).toContain('deploy the api')
-    expect(await ui.find({ key: 'login-personal' })).toBeFalsy()
     // Desktop draws the branded header as a vector lockup; the terminal as text.
     if (surface === 'desktop') expect((await ui.findAll({ type: 'Svg' })).length).toBeGreaterThan(0)
     else expect(texts).toContain('Omer Bin Saleem')
   })
 
-  test(`${surface}: a signed-out account gets a Log in button that runs claude auth login for its profile`, { options: OPTIONS }, async ($, on) => {
-    const spawned: string[][] = []
-    let personalSignedIn = false
-    on('env.get', async (_$, e) => ({ value: e.name === 'HOME' ? HOME : undefined }))
-    on('fs.read', async (_$, e) =>
-      e.path === `${HOME}/.claude.json`
-        ? { value: login('me@company.com', 'claude_team') }
-        : personalSignedIn
-          ? { value: login('me@gmail.com', 'claude_max') }
-          : { value: '{}' },
-    )
-    on('fs.stat', async () => ({ deny: 'missing' }))
-    on('http.fetch', async (_$, e) => {
-      const body = e.url.endsWith('/api/whoami') ? { space: 'work', mode: 'shared' } : e.url.includes('/api/handoff') ? { handoff: null } : { items: [] }
-      return { value: { status: 200, ok: true, headers: {}, text: JSON.stringify(body) } }
-    })
-    on('process.spawn', async function* (_$, e) {
-      spawned.push([...e.argv])
-      personalSignedIn = true
-      yield { stream: 'stdout' as const, text: 'Opening https://claude.ai/oauth/authorize?x=1\n' }
-      return { value: { code: 0, signal: null } }
-    })
-    on('ui.open', async () => ({ value: { isPlaced: true } }))
-
-    await $.command.run(TWIN)
-    const ui = await $.ui.mount({ ...PANE, surface })
-    expect((await ui.findAll({ type: 'Text' })).map(t => t.text).join('\n')).toContain('Not signed in')
-
-    await ui.press({ key: 'login-personal' })
-
-    expect(spawned).toEqual([['/usr/bin/env', `CLAUDE_CONFIG_DIR=${HOME}/.claude-personal`, 'claude', 'auth', 'login']])
-    const after = (await ui.findAll({ type: 'Text' })).map(t => t.text).join('\n')
-    expect(after).toContain('Personal signed in.')
-    expect(after).toContain('me@gmail.com')
-    expect(await ui.find({ key: 'login-personal' })).toBeFalsy()
-  })
-
-  test(`${surface}: switching asks first when the memory is not synced, then opens the other account`, { options: OPTIONS }, async ($, on) => {
+  test(`${surface}: Switch account shows the logout, login, continue steps and runs nothing`, { options: OPTIONS }, async ($, on) => {
     const spawned: string[][] = []
     on('env.get', async (_$, e) => ({ value: e.name === 'HOME' ? HOME : undefined }))
-    on('fs.read', async (_$, e) =>
-      e.path === `${HOME}/.claude.json`
-        ? { value: login('me@company.com', 'claude_team') }
-        : e.path === `${HOME}/.claude-personal/.claude.json`
-          ? { value: login('me@gmail.com', 'claude_max') }
-          : { deny: 'no such file' },
-    )
+    on('fs.read', async () => ({ value: login('me@company.com', 'claude_team') }))
     on('http.fetch', async (_$, e) => {
-      const body = e.url.endsWith('/api/whoami') ? { space: 'work', mode: 'shared' } : e.url.includes('/api/handoff') ? { handoff: null } : { items: [] }
+      const body = e.url.includes('/api/handoff') ? { handoff: null } : { items: [] }
       return { value: { status: 200, ok: true, headers: {}, text: JSON.stringify(body) } }
     })
     on('process.spawn', async function* (_$, e) {
@@ -123,30 +67,16 @@ for (const surface of ['terminal', 'desktop'] as const) {
 
     await $.command.run(TWIN)
     const ui = await $.ui.mount({ ...PANE, surface })
-    await ui.press({ key: 'switch-personal' })
+    await ui.press({ key: 'switch-account' })
 
-    const alert = (await ui.findAll({ type: 'Text' })).map(t => t.text).join('\n')
-    expect(alert).toContain('not synced')
-    expect(spawned.some(a => a.includes('/usr/bin/osascript'))).toBe(false)
+    const steps = (await ui.findAll({ type: 'Text' })).map(t => t.text).join('\n')
+    expect(steps).toContain('Step 1. Type /logout')
+    expect(steps).toContain('Step 2. Type /login')
+    expect(steps).toContain('Step 3. Type continue')
+    expect(spawned.filter(a => !a.some(x => x.includes('sync-history')))).toEqual([])
 
-    await ui.press({ key: 'switch-anyway' })
-    const card = (await ui.findAll({ type: 'Text' })).map(t => t.text).join('\n')
-    expect(card).toContain('claude-personal')
-    expect(card).toContain('How to switch to Personal')
-    expect(spawned.some(a => a.includes('/usr/bin/osascript'))).toBe(false)
-  })
-
-
-  test(`${surface}: warns when both profiles are signed in to the same account`, { options: OPTIONS }, async ($, on) => {
-    on('env.get', async (_$, e) => ({ value: e.name === 'HOME' ? HOME : undefined }))
-    on('fs.read', async () => ({ value: login('same@gmail.com', 'claude_pro') }))
-    on('http.fetch', async () => ({ value: { status: 200, ok: true, headers: {}, text: JSON.stringify({ space: 'work', mode: 'shared', items: [] }) } }))
-    on('ui.open', async () => ({ value: { isPlaced: true } }))
-
-    await $.command.run(TWIN)
-    const ui = await $.ui.mount({ ...PANE, surface })
-    const texts = (await ui.findAll({ type: 'Text' })).map(t => t.text).join('\n')
-    expect(texts).toContain('Both profiles are signed in to same@gmail.com')
+    await ui.press({ key: 'switch-close' })
+    expect(await ui.find({ key: 'switch-steps' })).toBeFalsy()
   })
 
   test(`${surface}: says so when the memory is down`, { options: OPTIONS }, async ($, on) => {
@@ -159,7 +89,7 @@ for (const surface of ['terminal', 'desktop'] as const) {
     const ui = await $.ui.mount({ ...PANE, surface })
     const texts = (await ui.findAll({ type: 'Text' })).map(t => t.text).join('\n')
     expect(texts).toContain('not reachable')
-    expect(await ui.find({ key: 'login-work' })).toBeTruthy()
+    expect(texts).toContain('Type /login')
   })
 }
 
@@ -174,7 +104,7 @@ test('Sync all history imports both profiles and shows progress', { options: OPT
       : { value: login('me@company.com', 'claude_team') },
   )
   on('fs.exists', async (_$, e) => ({
-    value: e.path === '/opt/homebrew/bin/node' || e.path.includes('/1.5.4/scripts/sync-history.mjs') || e.path.endsWith('/projects'),
+    value: e.path === '/opt/homebrew/bin/node' || e.path.includes('/1.6.0/scripts/sync-history.mjs') || e.path.endsWith('/projects'),
   }))
   on('http.fetch', async (_$, e) => {
     const body = e.url.endsWith('/api/whoami')
