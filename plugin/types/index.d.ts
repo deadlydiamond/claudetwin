@@ -40,8 +40,9 @@ export type TwinSync = {
 
 export type TwinSwitch = {
   account: TwinAccount
-  // unsynced: the shared memory is not up to date, so the person is asked before leaving.
-  state: 'unsynced' | 'opening' | 'failed'
+  // unsynced: not synced; ready: show the run command; failed: something went wrong.
+  state: 'unsynced' | 'ready' | 'failed'
+  command?: string
   message?: string
 }
 
