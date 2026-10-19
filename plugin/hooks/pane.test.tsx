@@ -53,7 +53,8 @@ for (const surface of ['terminal', 'desktop'] as const) {
     expect(texts).toContain('me@company.com · team')
     expect(texts).toContain('me@gmail.com · max')
     expect(texts).toContain('this session')
-    expect(texts).toContain('run claude-personal')
+    expect(await ui.find({ key: 'switch-personal' })).toBeTruthy()
+    expect(await ui.find({ key: 'switch-work' })).toBeFalsy()
     expect(texts).toContain('synced')
     expect(texts).toContain('Billing refactor')
     expect(texts).toContain('deploy the api')
@@ -100,6 +101,51 @@ for (const surface of ['terminal', 'desktop'] as const) {
     expect(await ui.find({ key: 'login-personal' })).toBeFalsy()
   })
 
+  test(`${surface}: switching asks first when the memory is not synced, then opens the other account`, { options: OPTIONS }, async ($, on) => {
+    const spawned: string[][] = []
+    on('env.get', async (_$, e) => ({ value: e.name === 'HOME' ? HOME : undefined }))
+    on('fs.read', async (_$, e) =>
+      e.path === `${HOME}/.claude.json`
+        ? { value: login('me@company.com', 'claude_team') }
+        : e.path === `${HOME}/.claude-personal/.claude.json`
+          ? { value: login('me@gmail.com', 'claude_max') }
+          : { deny: 'no such file' },
+    )
+    on('http.fetch', async (_$, e) => {
+      const body = e.url.endsWith('/api/whoami') ? { space: 'work', mode: 'shared' } : e.url.includes('/api/handoff') ? { handoff: null } : { items: [] }
+      return { value: { status: 200, ok: true, headers: {}, text: JSON.stringify(body) } }
+    })
+    on('process.spawn', async function* (_$, e) {
+      spawned.push([...e.argv])
+      return { value: { code: 0, signal: null } }
+    })
+    on('ui.open', async () => ({ value: { isPlaced: true } }))
+
+    await $.command.run(TWIN)
+    const ui = await $.ui.mount({ ...PANE, surface })
+    await ui.press({ key: 'switch-personal' })
+
+    const alert = (await ui.findAll({ type: 'Text' })).map(t => t.text).join('\n')
+    expect(alert).toContain('not synced')
+    expect(spawned.some(a => a.includes('/usr/bin/osascript'))).toBe(false)
+
+    await ui.press({ key: 'switch-anyway' })
+    const opened = spawned.find(a => a.includes('/usr/bin/osascript'))
+    expect(opened?.join(' ')).toContain('claude-personal')
+  })
+
+  test(`${surface}: warns when both profiles are signed in to the same account`, { options: OPTIONS }, async ($, on) => {
+    on('env.get', async (_$, e) => ({ value: e.name === 'HOME' ? HOME : undefined }))
+    on('fs.read', async () => ({ value: login('same@gmail.com', 'claude_pro') }))
+    on('http.fetch', async () => ({ value: { status: 200, ok: true, headers: {}, text: JSON.stringify({ space: 'work', mode: 'shared', items: [] }) } }))
+    on('ui.open', async () => ({ value: { isPlaced: true } }))
+
+    await $.command.run(TWIN)
+    const ui = await $.ui.mount({ ...PANE, surface })
+    const texts = (await ui.findAll({ type: 'Text' })).map(t => t.text).join('\n')
+    expect(texts).toContain('Both profiles are signed in to same@gmail.com')
+  })
+
   test(`${surface}: says so when the memory is down`, { options: OPTIONS }, async ($, on) => {
     on('env.get', async (_$, e) => ({ value: e.name === 'HOME' ? HOME : undefined }))
     on('fs.read', async () => ({ value: '{}' }))
@@ -125,7 +171,7 @@ test('Sync all history imports both profiles and shows progress', { options: OPT
       : { value: login('me@company.com', 'claude_team') },
   )
   on('fs.exists', async (_$, e) => ({
-    value: e.path === '/opt/homebrew/bin/node' || e.path.includes('/1.4.1/scripts/sync-history.mjs') || e.path.endsWith('/projects'),
+    value: e.path === '/opt/homebrew/bin/node' || e.path.includes('/1.5.0/scripts/sync-history.mjs') || e.path.endsWith('/projects'),
   }))
   on('http.fetch', async (_$, e) => {
     const body = e.url.endsWith('/api/whoami')
