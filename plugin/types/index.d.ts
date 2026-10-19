@@ -62,6 +62,8 @@ export type TwinView = {
   query: string
   sync?: TwinSync
   switching?: TwinSwitch
+  // The account whose Log out is waiting for a yes.
+  confirmLogout?: TwinAccount
   stats?: TwinStats
 }
 
