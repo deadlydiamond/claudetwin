@@ -132,7 +132,7 @@ for (const surface of ['terminal', 'desktop'] as const) {
     await ui.press({ key: 'switch-anyway' })
     const card = (await ui.findAll({ type: 'Text' })).map(t => t.text).join('\n')
     expect(card).toContain('claude-personal')
-    expect(card).toContain('Run this in your terminal')
+    expect(card).toContain('How to switch to Personal')
     expect(spawned.some(a => a.includes('/usr/bin/osascript'))).toBe(false)
   })
 
@@ -202,7 +202,7 @@ test('Sync all history imports both profiles and shows progress', { options: OPT
       : { value: login('me@company.com', 'claude_team') },
   )
   on('fs.exists', async (_$, e) => ({
-    value: e.path === '/opt/homebrew/bin/node' || e.path.includes('/1.5.2/scripts/sync-history.mjs') || e.path.endsWith('/projects'),
+    value: e.path === '/opt/homebrew/bin/node' || e.path.includes('/1.5.3/scripts/sync-history.mjs') || e.path.endsWith('/projects'),
   }))
   on('http.fetch', async (_$, e) => {
     const body = e.url.endsWith('/api/whoami')
