@@ -134,6 +134,35 @@ for (const surface of ['terminal', 'desktop'] as const) {
     expect(opened?.join(' ')).toContain('claude-personal')
   })
 
+  test(`${surface}: Log out asks first, then runs claude auth logout for that profile`, { options: OPTIONS }, async ($, on) => {
+    const spawned: string[][] = []
+    on('env.get', async (_$, e) => ({ value: e.name === 'HOME' ? HOME : undefined }))
+    on('fs.read', async (_$, e) =>
+      e.path === `${HOME}/.claude.json`
+        ? { value: login('me@company.com', 'claude_team') }
+        : { value: login('me@gmail.com', 'claude_max') },
+    )
+    on('fs.stat', async () => ({ deny: 'missing' }))
+    on('http.fetch', async (_$, e) => {
+      const body = e.url.endsWith('/api/whoami') ? { space: 'work', mode: 'shared' } : e.url.includes('/api/handoff') ? { handoff: null } : { items: [] }
+      return { value: { status: 200, ok: true, headers: {}, text: JSON.stringify(body) } }
+    })
+    on('process.spawn', async function* (_$, e) {
+      spawned.push([...e.argv])
+      return { value: { code: 0, signal: null } }
+    })
+    on('ui.open', async () => ({ value: { isPlaced: true } }))
+
+    await $.command.run(TWIN)
+    const ui = await $.ui.mount({ ...PANE, surface })
+    await ui.press({ key: 'logout-personal' })
+    expect(spawned.some(a => a.includes('logout'))).toBe(false)
+    expect((await ui.findAll({ type: 'Text' })).map(t => t.text).join('\n')).toContain('Log out of Personal')
+
+    await ui.press({ key: 'logout-confirm-personal' })
+    expect(spawned.find(a => a.includes('logout'))).toEqual(['/usr/bin/env', `CLAUDE_CONFIG_DIR=${HOME}/.claude-personal`, 'claude', 'auth', 'logout'])
+  })
+
   test(`${surface}: warns when both profiles are signed in to the same account`, { options: OPTIONS }, async ($, on) => {
     on('env.get', async (_$, e) => ({ value: e.name === 'HOME' ? HOME : undefined }))
     on('fs.read', async () => ({ value: login('same@gmail.com', 'claude_pro') }))
@@ -171,7 +200,7 @@ test('Sync all history imports both profiles and shows progress', { options: OPT
       : { value: login('me@company.com', 'claude_team') },
   )
   on('fs.exists', async (_$, e) => ({
-    value: e.path === '/opt/homebrew/bin/node' || e.path.includes('/1.5.0/scripts/sync-history.mjs') || e.path.endsWith('/projects'),
+    value: e.path === '/opt/homebrew/bin/node' || e.path.includes('/1.5.1/scripts/sync-history.mjs') || e.path.endsWith('/projects'),
   }))
   on('http.fetch', async (_$, e) => {
     const body = e.url.endsWith('/api/whoami')

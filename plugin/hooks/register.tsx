@@ -15,7 +15,7 @@ const LABEL: Record<string, string> = { work: 'Company', personal: 'Personal', s
 const PROFILE_DIR: Record<TwinAccount, string | undefined> = { work: undefined, personal: '.claude-personal' }
 const COMMAND: Record<TwinAccount, string> = { work: 'claude-work', personal: 'claude-personal' }
 // Must match .claude-plugin/plugin.json: the installed copy of the sync script lives under it.
-const VERSION = '1.5.0'
+const VERSION = '1.5.1'
 const REPO_SCRIPT = '~/Projects/claudetwin/plugin/scripts/sync-history.mjs'
 
 const CONTINUE_PROMPT =
@@ -192,6 +192,39 @@ async function logIn($: EngineInterface, account: TwinAccount) {
     }))
   } catch {
     await update($, view, (v): TwinView => ({ ...v, login: { account, state: 'failed', message: `Could not start sign-in here. ${manual}` } }))
+  }
+  await refresh($)
+}
+
+const askLogout = ($: EngineInterface, account?: TwinAccount) => update($, view, (v): TwinView => ({ ...v, confirmLogout: account }))
+
+// Runs `claude auth logout` for that account's profile (only after the person confirms in the panel).
+async function logOut($: EngineInterface, account: TwinAccount) {
+  const dir = PROFILE_DIR[account]
+  const bin = await claudeBinary($)
+  const argv = dir
+    ? ['/usr/bin/env', `CLAUDE_CONFIG_DIR=${await home($)}/${dir}`, bin, 'auth', 'logout']
+    : ['/usr/bin/env', '-u', 'CLAUDE_CONFIG_DIR', bin, 'auth', 'logout']
+  await update($, view, (v): TwinView => ({
+    ...v,
+    confirmLogout: undefined,
+    login: { account, state: 'running', message: `Logging out of ${LABEL[account]}…` },
+  }))
+  try {
+    const run = $.process.spawn({ argv })
+    for await (const _ of run) {
+      /* nothing to read */
+    }
+    const { code } = await run.result
+    await update($, view, (v): TwinView => ({
+      ...v,
+      login:
+        code === 0
+          ? { account, state: 'done', message: `${LABEL[account]} logged out. Use Log in to sign in to another account.` }
+          : { account, state: 'failed', message: `Log out did not finish. Run ${COMMAND[account]} in a terminal and type /logout.` },
+    }))
+  } catch {
+    await update($, view, (v): TwinView => ({ ...v, login: { account, state: 'failed', message: `Could not log out here. Run ${COMMAND[account]} in a terminal and type /logout.` } }))
   }
   await refresh($)
 }
@@ -460,6 +493,28 @@ export const register: Register = (on, options) => {
                       {`Switch to ${LABEL[a]}`}
                     </Button>
                   )}
+                  {p.isLoggedIn && v.confirmLogout !== a && (
+                    <Button key={`logout-${a}`} onPress={() => void askLogout($, a)}>
+                      {`Log out of ${LABEL[a]}`}
+                    </Button>
+                  )}
+                  {p.isLoggedIn && v.confirmLogout === a && (
+                    <Box key={`logout-ask-${a}`} flexDirection="column" gap={1}>
+                      <Text color="warning">
+                        {isHere
+                          ? `This is the session you are in. Logging out of ${LABEL[a]} ends it here.`
+                          : `Log out of ${LABEL[a]} (${p.email ?? 'this account'})?`}
+                      </Text>
+                      <Box flexDirection="row" gap={1} flexWrap="wrap">
+                        <Button key={`logout-confirm-${a}`} variant="primary" onPress={() => void logOut($, a)}>
+                          Yes, log out
+                        </Button>
+                        <Button key={`logout-cancel-${a}`} onPress={() => void askLogout($, undefined)}>
+                          Cancel
+                        </Button>
+                      </Box>
+                    </Box>
+                  )}
                 </Box>
               )
             })}
@@ -497,7 +552,7 @@ export const register: Register = (on, options) => {
           )}
           {sameAccount && (
             <Text key="same-account" color="warning">
-              Both profiles are signed in to {v.profiles.work.email}. Use "Log in" on the Personal profile for your second account, instead of logging out here.
+              Both profiles are signed in to {v.profiles.work.email}. Log out of the Personal profile below, then Log in with your second account. Switch lets you move between the two without logging out again.
             </Text>
           )}
           {v.login && (

@@ -34,13 +34,15 @@ All of them are `GET`s to your connector, read only:
 
 ### Commands it runs
 
-There are exactly three, all with fixed arguments, and all start only when you press a button in the panel:
+There are exactly four, all with fixed arguments, and all start only when you press a button in the panel:
 
 1. **Log in** (only when you press *Log in* for an account that is signed out):
    `/usr/bin/env CLAUDE_CONFIG_DIR=$HOME/.claude-personal claude auth login` for the personal profile, or `/usr/bin/env -u CLAUDE_CONFIG_DIR claude auth login` for the work profile. This is Claude Code's own sign-in. The plugin reads the command's output only to show the sign-in link it prints.
 2. **Sync history** (on first run, then to catch up):
    `node <plugin>/scripts/sync-history.mjs <connector_url> <token> <profile_dir>`. See *Sync* below for what it sends.
-3. **Switch to Company / Personal** (only when you press *Switch to ...*, after the sync check):
+3. **Log out** (only when you press *Log out of ...* and then confirm with *Yes, log out*):
+   `/usr/bin/env CLAUDE_CONFIG_DIR=$HOME/.claude-personal claude auth logout` for the personal profile, or `/usr/bin/env -u CLAUDE_CONFIG_DIR claude auth logout` for the work profile. This is Claude Code's own sign-out.
+4. **Switch to Company / Personal** (only when you press *Switch to ...*, after the sync check):
    `/usr/bin/osascript -e 'tell application "Terminal" to do script "claude-personal"' -e 'tell application "Terminal" to activate'` (or `claude-work`). It opens the other account's Claude Code in a new Terminal window. The command name is one of those two fixed values; nothing from the connector is placed in it.
 
 The plugin does not run any other command, shell, agent or tool. It does not run anything it receives from the connector.

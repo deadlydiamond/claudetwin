@@ -1,6 +1,6 @@
 {
   "name": "claudetwin",
-  "version": "1.5.0",
+  "version": "1.5.1",
   "description": "One memory for your two Claude accounts. Pick up work from your work account in your personal one (and back) with handoffs, full history search and a /twin panel.",
   "author": {
     "name": "Omer Bin Saleem",
