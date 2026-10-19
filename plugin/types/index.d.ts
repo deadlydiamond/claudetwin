@@ -17,14 +17,6 @@ export type TwinProfile = {
   isLoggedIn: boolean
   email?: string
   plan?: string
-  lastActivity?: string
-}
-
-export type TwinLogin = {
-  account: TwinAccount
-  state: 'running' | 'done' | 'failed'
-  message: string
-  url?: string
 }
 
 export type TwinSync = {
@@ -38,14 +30,6 @@ export type TwinSync = {
   at?: string
 }
 
-export type TwinSwitch = {
-  account: TwinAccount
-  // unsynced: not synced; ready: show the run command; failed: something went wrong.
-  state: 'unsynced' | 'ready' | 'failed'
-  command?: string
-  message?: string
-}
-
 export type TwinStats = {
   messages: Partial<Record<string, number>>
   handoffs: number
@@ -53,18 +37,15 @@ export type TwinStats = {
 }
 
 export type TwinView = {
-  session?: TwinAccount
-  profiles: Record<TwinAccount, TwinProfile>
-  login?: TwinLogin
+  // The Claude account signed in where this panel runs.
+  account: TwinProfile
   connector: 'ok' | 'down' | 'not-set-up' | 'loading'
   error?: string
   handoff?: TwinItem
   items: TwinItem[]
   query: string
   sync?: TwinSync
-  switching?: TwinSwitch
-  // The account whose Log out is waiting for a yes.
-  confirmLogout?: TwinAccount
+  showSwitchSteps?: boolean
   stats?: TwinStats
 }
 

@@ -20,7 +20,7 @@ By Omer Bin Saleem. MIT licensed.
 
 **Start with your whole history.** Installing the plugin imports every past Claude Code session from both profiles, not only what happens after install. On a machine with about 4,000 sessions the first sync takes around 30 seconds; later syncs read only new sessions and take under a second.
 
-**Clear status at a glance.** The panel shows which account this session uses, whether the other one is signed in (with a **Log in** button if not), and whether the memory is reachable.
+**Switch in three steps, anywhere.** Type `/logout`, then `/login` with the other account, then `continue`. Works the same in the terminal, Cursor, VS Code and the desktop app, with as many accounts as you like. Nothing to copy or sync: every message is already in the shared memory.
 
 What ClaudeTwin is not: it does not share a login, merge accounts, or move between them for you. You choose which account to use. Your work account's policies still apply to what you put in it, so check them before you sync work history to a connector outside your company.
 
@@ -89,12 +89,13 @@ When asked, set:
 - **connector_url**: `http://localhost:8787`, or your deployed URL (no trailing slash)
 - **account_token**: the work token in your work account, the personal token in your personal one
 
-Two accounts on one computer need two Claude Code profiles. Add this to `~/.zshrc`:
+### Switch accounts
 
-```bash
-claude-work() { env -u CLAUDE_CONFIG_DIR claude "$@"; }
-claude-personal() { CLAUDE_CONFIG_DIR="$HOME/.claude-personal" claude "$@"; }
-```
+1. Type `/logout` in your Claude Code chat.
+2. Type `/login` and sign in with the other account.
+3. Type `continue`. Claude loads the shared memory and picks up where you stopped.
+
+The plugin and its token stay installed across logins, so there are no extra profiles to set up.
 
 ### 3. Open the panel
 
@@ -102,7 +103,7 @@ Type `/twin`. You will see:
 
 | Section | What it shows |
 |---|---|
-| Accounts | Both accounts, email and plan, last activity, which one this session uses, a **Log in** button for one that is signed out |
+| Account | The account signed in here, email and plan, and **Switch account** with the three steps |
 | Memory | Message and handoff counts, how far back the history goes, sync progress, **Sync all history** and **Refresh** |
 | Latest handoff | Title, summary and next steps, with **Continue here** and **Save handoff** |
 | History | Search across both accounts, or the most recent items |
