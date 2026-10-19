@@ -15,7 +15,7 @@ const LABEL: Record<string, string> = { work: 'Company', personal: 'Personal', s
 const PROFILE_DIR: Record<TwinAccount, string | undefined> = { work: undefined, personal: '.claude-personal' }
 const COMMAND: Record<TwinAccount, string> = { work: 'claude-work', personal: 'claude-personal' }
 // Must match .claude-plugin/plugin.json: the installed copy of the sync script lives under it.
-const VERSION = '1.5.1'
+const VERSION = '1.5.2'
 const REPO_SCRIPT = '~/Projects/claudetwin/plugin/scripts/sync-history.mjs'
 
 const CONTINUE_PROMPT =
@@ -259,22 +259,16 @@ const isFresh = (v: TwinView) => v.sync?.state === 'done' && !!v.sync.at && Date
 
 const setSwitching = ($: EngineInterface, switching?: TwinSwitch) => update($, view, (v): TwinView => ({ ...v, switching }))
 
-// Opens the other account's Claude Code in a new Terminal window (its own profile, so no logout is needed).
+// Shows the command to open the other account's Claude Code — works in any editor or terminal.
 async function openAccount($: EngineInterface, account: TwinAccount) {
-  await setSwitching($, { account, state: 'opening', message: `Opening ${LABEL[account]} in a new Terminal window…` })
+  await setSwitching($, { account, state: 'ready', command: COMMAND[account] })
+}
+
+async function copyCommand($: EngineInterface, command: string) {
   try {
-    const run = $.process.spawn({
-      argv: ['/usr/bin/osascript', '-e', `tell application "Terminal" to do script "${COMMAND[account]}"`, '-e', 'tell application "Terminal" to activate'],
-    })
-    for await (const _ of run) {
-      /* nothing to read */
-    }
-    const { code } = await run.result
-    if (code !== 0) throw new Error(`exit ${code}`)
-    await setSwitching($, undefined)
-  } catch {
-    await setSwitching($, { account, state: 'failed', message: `Could not open a window here. Run ${COMMAND[account]} in a terminal.` })
-  }
+    const run = $.process.spawn({ argv: ['sh', '-c', `echo -n '${command}' | pbcopy`] })
+    for await (const _ of run) { /* nothing to read */ }
+  } catch { /* clipboard not available; user can copy manually */ }
 }
 
 // The Switch button: straight to the other account when memory is synced, else ask first.
@@ -545,8 +539,23 @@ export const register: Register = (on, options) => {
               </Box>
             </Box>
           )}
-          {v.switching && v.switching.state !== 'unsynced' && (
-            <Text key="switch-msg" color={v.switching.state === 'failed' ? 'error' : undefined} dimColor={v.switching.state !== 'failed'}>
+          {v.switching?.state === 'ready' && (
+            <Box key="switch-ready" flexDirection="column" gap={1} borderStyle="round" borderColor="green" paddingX={2} paddingY={1}>
+              <Text bold>Run this in your terminal</Text>
+              <Text color="green">{v.switching.command}</Text>
+              <Text dimColor>Works in any editor: Cursor, VS Code, Terminal, or iTerm.</Text>
+              <Box flexDirection="row" gap={1}>
+                <Button key="copy-cmd" variant="primary" onPress={() => void copyCommand($, v.switching!.command!)}>
+                  Copy
+                </Button>
+                <Button key="switch-done" onPress={() => void setSwitching($, undefined)}>
+                  Done
+                </Button>
+              </Box>
+            </Box>
+          )}
+          {v.switching?.state === 'failed' && (
+            <Text key="switch-msg" color="error">
               {v.switching.message}
             </Text>
           )}

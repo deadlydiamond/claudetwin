@@ -130,8 +130,10 @@ for (const surface of ['terminal', 'desktop'] as const) {
     expect(spawned.some(a => a.includes('/usr/bin/osascript'))).toBe(false)
 
     await ui.press({ key: 'switch-anyway' })
-    const opened = spawned.find(a => a.includes('/usr/bin/osascript'))
-    expect(opened?.join(' ')).toContain('claude-personal')
+    const card = (await ui.findAll({ type: 'Text' })).map(t => t.text).join('\n')
+    expect(card).toContain('claude-personal')
+    expect(card).toContain('Run this in your terminal')
+    expect(spawned.some(a => a.includes('/usr/bin/osascript'))).toBe(false)
   })
 
   test(`${surface}: Log out asks first, then runs claude auth logout for that profile`, { options: OPTIONS }, async ($, on) => {
@@ -200,7 +202,7 @@ test('Sync all history imports both profiles and shows progress', { options: OPT
       : { value: login('me@company.com', 'claude_team') },
   )
   on('fs.exists', async (_$, e) => ({
-    value: e.path === '/opt/homebrew/bin/node' || e.path.includes('/1.5.1/scripts/sync-history.mjs') || e.path.endsWith('/projects'),
+    value: e.path === '/opt/homebrew/bin/node' || e.path.includes('/1.5.2/scripts/sync-history.mjs') || e.path.endsWith('/projects'),
   }))
   on('http.fetch', async (_$, e) => {
     const body = e.url.endsWith('/api/whoami')
