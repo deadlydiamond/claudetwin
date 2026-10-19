@@ -15,7 +15,7 @@ const LABEL: Record<string, string> = { work: 'Company', personal: 'Personal', s
 const PROFILE_DIR: Record<TwinAccount, string | undefined> = { work: undefined, personal: '.claude-personal' }
 const COMMAND: Record<TwinAccount, string> = { work: 'claude-work', personal: 'claude-personal' }
 // Must match .claude-plugin/plugin.json: the installed copy of the sync script lives under it.
-const VERSION = '1.5.3'
+const VERSION = '1.5.4'
 const REPO_SCRIPT = '~/Projects/claudetwin/plugin/scripts/sync-history.mjs'
 
 const CONTINUE_PROMPT =
@@ -487,28 +487,6 @@ export const register: Register = (on, options) => {
                       {`Switch to ${LABEL[a]}`}
                     </Button>
                   )}
-                  {p.isLoggedIn && v.confirmLogout !== a && (
-                    <Button key={`logout-${a}`} onPress={() => void askLogout($, a)}>
-                      {`Log out of ${LABEL[a]}`}
-                    </Button>
-                  )}
-                  {p.isLoggedIn && v.confirmLogout === a && (
-                    <Box key={`logout-ask-${a}`} flexDirection="column" gap={1}>
-                      <Text color="warning">
-                        {isHere
-                          ? `This is the session you are in. Logging out of ${LABEL[a]} ends it here.`
-                          : `Log out of ${LABEL[a]} (${p.email ?? 'this account'})?`}
-                      </Text>
-                      <Box flexDirection="row" gap={1} flexWrap="wrap">
-                        <Button key={`logout-confirm-${a}`} variant="primary" onPress={() => void logOut($, a)}>
-                          Yes, log out
-                        </Button>
-                        <Button key={`logout-cancel-${a}`} onPress={() => void askLogout($, undefined)}>
-                          Cancel
-                        </Button>
-                      </Box>
-                    </Box>
-                  )}
                 </Box>
               )
             })}
@@ -567,7 +545,7 @@ export const register: Register = (on, options) => {
           )}
           {sameAccount && (
             <Text key="same-account" color="warning">
-              Both profiles are signed in to {v.profiles.work.email}. Log out of the Personal profile below, then Log in with your second account. Switch lets you move between the two without logging out again.
+              Both profiles are signed in to {v.profiles.work.email}. To fix: run `claude auth logout` in a terminal, then use Log in below to sign in with your second account.
             </Text>
           )}
           {v.login && (
