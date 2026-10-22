@@ -123,9 +123,9 @@ Import past sessions from a terminal at any time (`--dry-run` shows what would b
 node plugin/scripts/sync-history.mjs http://localhost:8787 <TOKEN> ~/.claude
 ```
 
-## Related
+## Claude plugin directory edition
 
-- **TwinBridge** ([deadlydiamond/twinbridge](https://github.com/deadlydiamond/twinbridge)): handoffs only, from a server you run yourself. It logs no prompts or replies and works with this connector.
+The plugin directory does not allow plugins that log conversation history, so a handoffs-only edition of ClaudeTwin, [TwinBridge](https://github.com/deadlydiamond/twinbridge), is listed there. It uses this same connector and saves nothing unless you ask.
 
 ## Development
 
