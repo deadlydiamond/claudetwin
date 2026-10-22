@@ -2,43 +2,26 @@
 
 # ClaudeTwin
 
-**One memory for all your Claude accounts.**
+**One memory for your company and personal Claude accounts.**
 
-Many people run more than one Claude account: one from work, one of their own, or a cheap backup for the days the main plan hits its limit. Each account remembers only its own chats, so moving between them means copying context by hand, re-explaining the task, and losing the decisions you already made.
+ClaudeTwin is a Claude Code plugin plus a small server you run yourself. Every prompt and final reply from each account is saved to that server, so you can search it, and hand a task from one account to the other, from either account.
 
-ClaudeTwin gives all your accounts one shared memory. When one account runs out, you switch and carry on mid-task. Every prompt and reply is saved as you go and is searchable from any account. A `/twin` panel in Claude Code shows the account you are on, how to switch, the latest handoff, and your full history in one place.
+**Who it is for:** people who use two or more Claude accounts, for example one for work and one of their own, or a backup plan for the days the main one hits its limit.
 
-By Omer Bin Saleem. MIT licensed.
+**Why not the alternatives:**
 
-## Why ClaudeTwin
+- *Copying files or pasting context* means re-explaining the task each time and losing the decisions. Here, a handoff carries what was asked, what is done, why, and the next steps.
+- *Staying on one account* is not always possible: a work account has its own rules, and a plan has limits.
+- *Account switchers* swap login tokens. ClaudeTwin leaves your login alone: you use the normal `/logout` and `/login`.
+- *Hosted memory services* keep your history on their servers. ClaudeTwin keeps it in one folder on a machine you control.
 
-Account switchers exist, and memory services exist. ClaudeTwin is built to do all three of these at once:
+**First command** (full steps in [Install](#install)):
 
-| | ClaudeTwin | Account switchers | Hosted memory services |
-|---|---|---|---|
-| One memory across all your accounts | Yes, every prompt and reply, plus handoffs | Some share history between local profiles | Yes |
-| Your login | Untouched: normal `/logout` and `/login` | Copy and swap your OAuth tokens | Untouched |
-| Where your history lives | Your own machine or server | Your machine | The vendor's servers |
-| Cost | Free, MIT | Mostly free | Usually a paid plan |
-| Works in claude.ai and Claude desktop chat | Yes, through the connector | No, Claude Code only | Depends on the service |
+```bash
+git clone https://github.com/deadlydiamond/claudetwin && cd claudetwin/connector && npm install
+```
 
-In short: **one memory, any number of accounts, your login untouched, your data on your machine, free.**
-
-## Use cases
-
-**Office to home, same task.** You spend the afternoon on a migration in your work account. In the evening you open your personal account, press **Continue here** in `/twin`, and Claude loads the handoff: what was asked, what is done, the decisions behind it, and the next three steps. No re-explaining.
-
-**"What did we decide about that?"** Weeks later you remember a fix but not which account it was in. Search from either account and get the prompt, the reply, the account and the date.
-
-**One project, two contexts.** A side project you also discuss at work, or a work tool you prototype at home. Both accounts read the same notes, so neither starts from zero.
-
-**Start with your whole history.** Installing the plugin imports every past Claude Code session on this computer, not only what happens after install. On a machine with about 4,000 sessions the first sync takes around 30 seconds; later syncs read only new sessions and take under a second.
-
-**Switch in three steps, anywhere.** Type `/logout`, then `/login` with the other account, then `continue`. Works the same in the terminal, Cursor, VS Code and the desktop app, with as many accounts as you like. Nothing to copy or sync: every message is already in the shared memory.
-
-**Never lose a working day to a limit.** Keep a small backup subscription next to your main one. When the main plan runs out mid-task, switch and keep going with full context, instead of waiting for the reset or buying extra usage.
-
-What ClaudeTwin is not: it does not share a login, merge accounts or their limits, or move between them for you. You choose which account to use. Your work account's policies still apply to what you put in it, so check them before you sync work history to a connector outside your company.
+MIT licensed.
 
 ## How it works
 
@@ -54,14 +37,22 @@ What ClaudeTwin is not: it does not share a login, merge accounts or their limit
    └───────────────────────────────────────────────────────┘
 ```
 
-- **Connector** (`connector/`): a small MCP and REST server you run yourself. Each account has its own token, so the connector knows who wrote what. Data stays in one folder on that server.
-- **Plugin** (`plugin/`): connects Claude Code to the connector, adds the `/twin` panel, and installs hooks:
-  - at session start, the latest handoff and recent activity from all your accounts are added to Claude's context;
-  - each prompt and Claude's final reply are logged to the connector;
-  - past sessions are imported once, then kept in sync.
+- **Connector** (`connector/`): a small MCP and REST server. Each account has its own token, so it knows who wrote what. Data stays in one folder (`DATA_DIR`).
+- **Plugin** (`plugin/`): connects Claude Code to the connector, adds a `/twin` panel, and installs three hooks. At session start it adds the latest handoff and recent activity from all your accounts to Claude's context. Each prompt and Claude's final reply are logged to the connector. Past Claude Code sessions on the computer are imported once, then kept in sync.
 - **Skill** (`claudetwin`): tells Claude when to save a handoff and how to pick one up.
 
+## Use cases
+
+- **Office to home, same task.** Open your personal account, press **Continue here** in `/twin`, and Claude loads the handoff instead of you re-explaining.
+- **"What did we decide about that?"** Search from either account and get the prompt, the reply, the account and the date.
+- **One project, two contexts.** Both accounts read the same notes, so neither starts from zero.
+- **Hit a limit mid-task.** Switch accounts and carry on with context.
+
+What it is not: it does not share a login, merge accounts or their limits, or switch for you. If an account belongs to an employer, their policies still apply to what you sync to a connector outside the company.
+
 ## Install
+
+You need Node 20.6 or newer (the connector declares `>=20`, and the start command below uses `--env-file`) and Claude Code.
 
 ### 1. Run the connector
 
@@ -72,32 +63,25 @@ npm install
 cp .env.example .env
 ```
 
-Fill both tokens in `.env`. The connector needs both to start; the plugin uses only `CLAUDETWIN_WORK_TOKEN`, for any number of accounts. Generate each one with:
+Put two different random tokens in `.env` as `CLAUDETWIN_WORK_TOKEN` and `CLAUDETWIN_PERSONAL_TOKEN`. The connector will not start without them. Generate each with:
 
 ```bash
 node -e "console.log(require('crypto').randomBytes(24).toString('hex'))"
 ```
 
-Then start it:
+Start it:
 
 ```bash
 node --env-file=.env src/server.js
 ```
 
-`http://localhost:8787/health` should answer `{"ok":true}`. That is enough when your accounts use Claude Code on the same computer. To reach it from another machine or from claude.ai, deploy `connector/Dockerfile` (Render, Railway, Fly.io) with a persistent volume on `/data` and your tokens set as environment variables.
+`http://localhost:8787/health` answers `{"ok":true,"mode":"shared"}`. That is enough when all your accounts use Claude Code on the same computer. To reach it from another machine or from claude.ai, build `connector/Dockerfile` on a host you control, with a persistent volume on `/data` and the tokens set as environment variables.
 
 ### 2. Install the plugin in each account
 
-At the prompt of a Claude Code session:
-
-```
-/plugin install claudetwin --marketplace deadlydiamond/claudetwin
-```
-
-Press `y` to add the marketplace, then pick a scope. From a shell:
-
 ```bash
-claude plugin install claudetwin --marketplace deadlydiamond/claudetwin
+claude plugin marketplace add deadlydiamond/claudetwin
+claude plugin install claudetwin@claudetwin
 ```
 
 When asked, set:
@@ -105,29 +89,16 @@ When asked, set:
 - **connector_url**: `http://localhost:8787`, or your deployed URL (no trailing slash)
 - **account_token**: the work token in your work account, the personal token in your personal one
 
-### Switch accounts
+### 3. Switch accounts and open the panel
 
-1. Type `/logout` in your Claude Code chat.
-2. Type `/login` and sign in with the other account.
-3. Type `continue`. Claude loads the shared memory and picks up where you stopped.
+1. Type `/logout`, then `/login` with the other account.
+2. Type `continue`. Claude loads the shared memory and picks up where you stopped.
+3. Type `/twin` for the panel: the signed-in account, memory counts and sync, the latest handoff with **Continue here** and **Save handoff**, and a search over all your history.
 
-The plugin and its token stay installed across logins, so there are no extra profiles to set up.
-
-### 3. Open the panel
-
-Type `/twin`. You will see:
-
-| Section | What it shows |
-|---|---|
-| Account | The account signed in here, email and plan, and **Switch account** with the three steps |
-| Memory | Message and handoff counts, how far back the history goes, sync progress, **Sync all history** and **Refresh** |
-| Latest handoff | Title, summary and next steps, with **Continue here** and **Save handoff** |
-| History | Search across all your accounts, or the most recent items |
-
-### Optional: claude.ai and the Claude desktop chat
+### Optional: claude.ai and Claude desktop chat
 
 - **claude.ai**: Settings, Connectors, Add custom connector, with `https://<host>/mcp/<ACCOUNT_TOKEN>`. Each account uses its own token. Team and Enterprise plans may need an admin to allow custom connectors.
-- **Claude desktop chat**: it can run a local MCP server, so no public URL is needed. Point `claude_desktop_config.json` at `connector/src/bridge.js` with `CLAUDETWIN_URL` and `CLAUDETWIN_TOKEN` in its `env`, using the full path from `which node`.
+- **Claude desktop chat**: point `claude_desktop_config.json` at `connector/src/bridge.js` with `CLAUDETWIN_URL` and `CLAUDETWIN_TOKEN` in its `env`, using the full path from `which node`.
 
 ## Privacy
 
@@ -135,6 +106,7 @@ Type `/twin`. You will see:
 - Synced history is your prompts and Claude's final reply for each turn. Tool calls, tool output and subagent transcripts are not sent.
 - Tokens live in the plugin's settings (stored as sensitive) or in the connector's `.env`. A connector URL that contains a token gives access to that memory, so keep it private.
 - `CLAUDETWIN_MODE=isolated` keeps each account to its own history, plus items saved with `visibility: "shared"`.
+- The connector keeps the most recent 500 handoffs.
 
 ## Tools
 
@@ -145,22 +117,29 @@ Type `/twin`. You will see:
 | `search_history` | Search handoffs and messages from all your accounts |
 | `list_recent` | The most recent handoffs and messages |
 
-Sync from a terminal at any time:
+Import past sessions from a terminal at any time (`--dry-run` shows what would be sent):
 
 ```bash
 node plugin/scripts/sync-history.mjs http://localhost:8787 <TOKEN> ~/.claude
 ```
 
+## Related
+
+- **TwinBridge** ([deadlydiamond/twinbridge](https://github.com/deadlydiamond/twinbridge)): handoffs only, from a server you run yourself. It logs no prompts or replies and works with this connector.
+
 ## Development
 
 ```bash
 cd connector && npm test          # connector: MCP, REST, import, dedup
-claude plugin test plugin         # /twin panel on terminal and desktop
 claude plugin validate .          # marketplace, manifest and hooks
 ```
 
-The repository also holds two earlier experiments, a Chrome extension (`extension/`) and an Electron app (`app/`). They are not part of the plugin. Their notes are in [docs/README-roman-urdu.md](docs/README-roman-urdu.md).
+The repository also holds two earlier experiments, a Chrome extension (`extension/`) and an Electron app (`app/`), which are not part of the plugin. Their notes are in [docs/README-roman-urdu.md](docs/README-roman-urdu.md).
 
 ## License
 
-MIT, see [LICENSE](LICENSE). Made by [Omer Bin Saleem](https://github.com/deadlydiamond).
+MIT, see [LICENSE](LICENSE).
+
+## Author
+
+[Omer Bin Saleem](https://www.omerbinsaleem.com/), one hack a day.
